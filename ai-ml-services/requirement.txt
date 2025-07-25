@@ -1,0 +1,9 @@
+fastapi==0.110
+uvicorn==0.27
+scikit-learn==1.4
+xgboost==2.0
+spacy==3.7
+transformers==4.40
+networkx==3.2
+requests==2.31
+neo4j==5.13  

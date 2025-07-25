@@ -1,0 +1,31 @@
+#frontend
+# Ignore node_modules directory
+node_modules/
+# Ignore build output
+dist/
+# Ignore log files
+*.log
+# Ignore environment files
+.env
+# Ignore temporary files
+*.tmp
+# Ignore coverage reports
+coverage/
+# Ignore IDE specific files
+.vscode/
+# Ignore package lock files
+package-lock.json   
+# Ignore yarn lock files
+yarn.lock
+# Ignore npm debug files        
+npm-debug.log*
+# Ignore build artifacts
+build/
+# Ignore test output
+test-output/
+# Ignore cache files
+.cache/
+# Ignore temporary files created by editors
+*.swp
+# Ignore OS generated files
+.DS_Store
