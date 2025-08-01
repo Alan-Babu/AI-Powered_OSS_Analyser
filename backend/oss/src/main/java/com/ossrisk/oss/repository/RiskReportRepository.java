@@ -1,9 +1,9 @@
 package com.ossrisk.oss.repository;
 
+import  com.ossrisk.oss.model.RiskReport;
 import org.springframework.data.jpa.repository.JpaRepository;
-import com.ossrisk.oss.model.RiskReport;
+import org.springframework.stereotype.Repository;
 
-//extends JpaRepository<RiskReport,Long>
 
-public interface RiskReportRepository  {
-}
+@Repository
+public interface RiskReportRepository extends JpaRepository<RiskReport, Long>  { }

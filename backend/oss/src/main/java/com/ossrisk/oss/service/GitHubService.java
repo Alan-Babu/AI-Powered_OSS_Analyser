@@ -4,6 +4,7 @@ import com.ossrisk.oss.model.Dependency;
 import com.ossrisk.oss.model.RepositoryMetadata;
 import com.ossrisk.oss.model.RiskReport;
 import com.ossrisk.oss.repository.RepositoryMetadataRepository;
+import com.ossrisk.oss.repository.RiskReportRepository;
 import com.ossrisk.oss.utility.GitCloner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ public class GitHubService {
     @Autowired private VulnerabilityCheckerService vulnerabilityChecker;
     @Autowired private RiskScorerService riskScorer;
     @Autowired private RepositoryMetadataRepository metadataRepo;
+    @Autowired private RiskReportRepository riskReportRepo;
 
     public RiskReport processRepository(String repoUrl){
         File repoDir = GitCloner.cloneRepo(repoUrl);
@@ -30,7 +32,8 @@ public class GitHubService {
         List<Dependency> deps = dependencyAnalyzer.analyze(repoDir);
         List<Dependency> checkedDeps = vulnerabilityChecker.check(deps);
         double score = riskScorer.calculate(checkedDeps);
-        return new RiskReport(repoUrl,checkedDeps,score);
+        RiskReport report = new RiskReport(null,repoUrl,score,checkedDeps);
+        return riskReportRepo.save(report);
     }
 
 }

@@ -2,5 +2,10 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$/.." vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cloned-repos/1753982185449" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cloned-repos/1754026669997" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cloned-repos/1754026976793" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cloned-repos/1754030371148" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cloned-repos/1754044822108" vcs="Git" />
   </component>
 </project>

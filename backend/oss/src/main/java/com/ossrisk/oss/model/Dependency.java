@@ -10,10 +10,11 @@ import lombok.*;
 public class Dependency {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private long id;
+    private Long id;
     private String name;
     private String version;
     private boolean outdated;
     private boolean vulnerable;
+    private String ecosystem;
 
 }

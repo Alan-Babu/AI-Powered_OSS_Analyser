@@ -29,3 +29,9 @@ test-output/
 *.swp
 # Ignore OS generated files
 .DS_Store
+
+
+# Ignore IntelliJ IDEA project files
+application.properties
+.idea/
+
