@@ -30,6 +30,8 @@ public class GitHubService {
         metadataRepo.save(new RepositoryMetadata(null,repoUrl,owner,project));
 
         List<Dependency> deps = dependencyAnalyzer.analyze(repoDir);
+        System.out.println("Dependencies found: " + deps.size());
+        deps.forEach(d -> System.out.println(d.getEcosystem() + " - " + d.getName() + ":" + d.getVersion()));
         List<Dependency> checkedDeps = vulnerabilityChecker.check(deps);
         double score = riskScorer.calculate(checkedDeps);
         RiskReport report = new RiskReport(null,repoUrl,score,checkedDeps);

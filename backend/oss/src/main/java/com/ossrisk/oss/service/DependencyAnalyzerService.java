@@ -19,16 +19,18 @@ public class DependencyAnalyzerService {
         List<Dependency> allDeps = new ArrayList<>();
 
         try {
-            Files.walk(repoDir.toPath())
+            Files.walk(repoDir.toPath(), Integer.MAX_VALUE)
                     .filter(Files::isRegularFile)
                     .forEach(path -> {
                         String fileName = path.getFileName().toString();
+                        System.out.println("Analyzing path: " + path.toString());
                         try {
-                            if (fileName.equals("pom.xml")) {
+                            String filename_lower = fileName.toLowerCase();
+                            if (filename_lower.equals("pom.xml")) {
                                 allDeps.addAll(parseMavenDependencies(path.toFile()));
-                            } else if (fileName.equals("package.json")) {
+                            } else if (filename_lower.equals("package.json")) {
                                 allDeps.addAll(parseNpmDependencies(path.toFile()));
-                            } else if (fileName.equals("requirements.txt")) {
+                            } else if (filename_lower.equals("requirements.txt") || filename_lower.equals("requirement.txt")) {
                                 allDeps.addAll(parsePythonDependencies(path.toFile()));
                             }
                         } catch (Exception e) {
@@ -39,7 +41,7 @@ public class DependencyAnalyzerService {
             e.printStackTrace();
         }
 
-        return allDeps;
+        return new ArrayList<>(new HashSet<>(allDeps));
     }
 
     private List<Dependency> parseMavenDependencies(File pomFile) throws Exception {
@@ -66,11 +68,14 @@ public class DependencyAnalyzerService {
         JsonNode root = mapper.readTree(jsonFile);
         JsonNode deps = root.path("dependencies");
 
-        Iterator<String> fieldNames = deps.fieldNames();
-        while (fieldNames.hasNext()) {
-            String name = fieldNames.next();
-            String version = deps.get(name).asText();
-            dependencies.add(new Dependency(null, name, version.replace("^", ""), false, false,"npm"));
+
+        if(!deps.isMissingNode()){
+            Iterator<String> fieldNames = deps.fieldNames();
+            while (fieldNames.hasNext()) {
+                String name = fieldNames.next();
+                String version = deps.get(name).asText();
+                dependencies.add(new Dependency(null, name, version.replace("^", ""), false, false, "npm"));
+            }
         }
         return dependencies;
     }
@@ -79,6 +84,7 @@ public class DependencyAnalyzerService {
         List<Dependency> dependencies = new ArrayList<>();
         List<String> lines = Files.readAllLines(reqsFile.toPath());
         for (String line : lines) {
+            if(line.isBlank() || line.startsWith("#")) continue;
             String[] parts = line.split("==");
             if (parts.length == 2) {
                 dependencies.add(new Dependency(null, parts[0].trim(), parts[1].trim(), false, false,"pypi"));
