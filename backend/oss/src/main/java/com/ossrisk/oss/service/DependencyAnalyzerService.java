@@ -56,7 +56,7 @@ public class DependencyAnalyzerService {
             String artifactId = getTagValue("artifactId", dep);
             String version = getTagValue("version", dep);
             if (artifactId != null && version != null) {
-                dependencies.add(new Dependency(null, artifactId, version, false, false, "maven"));
+                dependencies.add(new Dependency(artifactId, version, false, false, "maven"));
             }
         }
         return dependencies;
@@ -74,7 +74,7 @@ public class DependencyAnalyzerService {
             while (fieldNames.hasNext()) {
                 String name = fieldNames.next();
                 String version = deps.get(name).asText();
-                dependencies.add(new Dependency(null, name, version.replace("^", ""), false, false, "npm"));
+                dependencies.add(new Dependency(name, version.replace("^", ""), false, false, "npm"));
             }
         }
         return dependencies;
@@ -87,7 +87,7 @@ public class DependencyAnalyzerService {
             if(line.isBlank() || line.startsWith("#")) continue;
             String[] parts = line.split("==");
             if (parts.length == 2) {
-                dependencies.add(new Dependency(null, parts[0].trim(), parts[1].trim(), false, false,"pypi"));
+                dependencies.add(new Dependency(parts[0].trim(), parts[1].trim(), false, false,"pypi"));
             }
         }
         return dependencies;

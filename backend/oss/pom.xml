@@ -75,7 +75,7 @@
 			<artifactId>spring-boot-devtools</artifactId>
 			<version>3.4.6</version>
 		</dependency>
-	</dependencies>
+    </dependencies>
 
 	<build>
 		<plugins>

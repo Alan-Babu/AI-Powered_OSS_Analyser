@@ -3,6 +3,8 @@ package com.ossrisk.oss.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 @Entity
@@ -18,6 +20,18 @@ public class Dependency {
     private boolean outdated;
     private boolean vulnerable;
     private String ecosystem;
+
+    @OneToMany(mappedBy = "dependency", cascade=CascadeType.ALL, orphanRemoval = true)
+    private List<Vulnerability> vulnerabilities = new ArrayList<>();
+
+    public Dependency(String name, String version, boolean outdated, boolean vulnerable, String ecosystem) {
+        this.name = name;
+        this.version = version;
+        this.outdated = outdated;
+        this.vulnerable = vulnerable;
+        this.ecosystem = ecosystem;
+        this.vulnerabilities = new ArrayList<>();
+    }
 
     @Override
     public boolean equals(Object o) {

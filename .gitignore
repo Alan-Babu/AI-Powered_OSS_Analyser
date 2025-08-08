@@ -34,4 +34,4 @@ test-output/
 # Ignore IntelliJ IDEA project files
 application.properties
 .idea/
-
+vcs.xml
