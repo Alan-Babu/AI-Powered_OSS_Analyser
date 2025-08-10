@@ -20,7 +20,7 @@ app = FastAPI(
 class CodeFile(BaseModel):
     filename: str = Field(..., description="Name of the code file")
     content: str = Field(..., description="Source code content")
-    language: str = Field(..., default="python", description="Programming language")
+    language: str = Field(..., description="Programming language")
 
 class SecurityIssue(BaseModel):
     severity: str = Field(..., description="Severity level (HIGH, MEDIUM, LOW)")

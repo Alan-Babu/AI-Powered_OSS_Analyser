@@ -28,8 +28,8 @@
 	</scm>
 	
 	<properties>
-		<java.version>24</java.version>
-		<spring-cloud.version>2024.0.0</spring-cloud.version>
+		<java.version>17</java.version>
+		<spring-cloud.version>2024.0.1</spring-cloud.version>
 	</properties>
 	
 	<dependencyManagement>
@@ -107,7 +107,6 @@
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-impl</artifactId>
 			<version>0.12.3</version>
-			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
@@ -117,10 +116,12 @@
 		</dependency>
 		
 		<!-- Caching -->
+		<!-- Temporarily disabled Redis for testing
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>
+		-->
 		
 		<!-- Circuit Breaker & Resilience -->
 		<dependency>
@@ -145,15 +146,21 @@
 		</dependency>
 		
 		<!-- Async Processing -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webflux</artifactId>
-		</dependency>
+		<!-- Note: spring-boot-starter-webflux is already included above -->
 		
 		<!-- Kafka for Event Streaming -->
+		<!-- Temporarily disabled Kafka for testing
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>
+		</dependency>
+		-->
+		
+		<!-- H2 Database for testing -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>runtime</scope>
 		</dependency>
 		
 		<!-- Test Dependencies -->
@@ -188,6 +195,21 @@
 						<include>**/*Test.java</include>
 						<include>**/*Tests.java</include>
 					</includes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>17</source>
+					<target>17</target>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>1.18.38</version>
+						</path>
+					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
 		</plugins>
