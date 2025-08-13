@@ -1,0 +1,167 @@
+<div class="space-y-6">
+  <!-- Page Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">Risk Assessment</h1>
+      <p class="text-gray-600 mt-2">Comprehensive security risk evaluation and recommendations</p>
+    </div>
+    <button class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+      </svg>
+      <span>Generate Report</span>
+    </button>
+  </div>
+
+  <!-- Risk Overview -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold text-gray-900">Overall Risk</h2>
+        <span class="px-3 py-1 rounded-full text-sm font-medium" [class]="getRiskColor(riskMetrics.overallRisk)">
+          {{ riskMetrics.overallRisk }}
+        </span>
+      </div>
+      <div class="text-center">
+        <div class="text-4xl font-bold text-gray-900 mb-2">{{ riskMetrics.riskScore.toFixed(1) }}</div>
+        <div class="text-sm text-gray-600">Risk Score (0-10)</div>
+      </div>
+      <div class="mt-4">
+        <div class="w-full bg-gray-200 rounded-full h-3">
+          <div class="bg-blue-600 h-3 rounded-full transition-all duration-300" 
+               [style.width.%]="(riskMetrics.riskScore / 10) * 100"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="text-center">
+        <div class="text-3xl font-bold text-red-600 mb-2">{{ riskMetrics.criticalIssues }}</div>
+        <div class="text-sm text-gray-600">Critical</div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="text-center">
+        <div class="text-3xl font-bold text-red-500 mb-2">{{ riskMetrics.highIssues }}</div>
+        <div class="text-sm text-gray-600">High</div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="text-center">
+        <div class="text-3xl font-bold text-yellow-500 mb-2">{{ riskMetrics.mediumIssues }}</div>
+        <div class="text-sm text-gray-600">Medium</div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="text-center">
+        <div class="text-3xl font-bold text-green-500 mb-2">{{ riskMetrics.lowIssues }}</div>
+        <div class="text-sm text-gray-600">Low</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk Factors Analysis -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div class="p-6 border-b border-gray-200">
+      <h2 class="text-xl font-semibold text-gray-900">Risk Factors Analysis</h2>
+      <p class="text-gray-600 mt-1">Detailed breakdown of risk contributors</p>
+    </div>
+    <div class="p-6">
+      <div class="space-y-4">
+        <div *ngFor="let factor of riskFactors" class="p-4 bg-gray-50 rounded-lg">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-medium text-gray-900">{{ factor.name }}</h3>
+            <div class="flex items-center space-x-3">
+              <span class="px-2 py-1 rounded-full text-xs font-medium" [class]="getRiskColor(factor.impact)">
+                {{ factor.impact }} impact
+              </span>
+              <span class="text-lg font-semibold text-gray-900">{{ factor.score.toFixed(1) }}/10</span>
+            </div>
+          </div>
+          <div class="flex items-center space-x-4">
+            <div class="flex-1">
+              <div class="flex justify-between text-sm text-gray-600 mb-1">
+                <span>Weight: {{ (factor.weight * 100).toFixed(0) }}%</span>
+                <span>Score: {{ factor.score.toFixed(1) }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                     [style.width.%]="(factor.score / 10) * 100"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recommendations -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div class="p-6 border-b border-gray-200">
+      <h2 class="text-xl font-semibold text-gray-900">Security Recommendations</h2>
+      <p class="text-gray-600 mt-1">Prioritized actions to reduce security risks</p>
+    </div>
+    <div class="p-6">
+      <div class="space-y-4">
+        <div *ngFor="let rec of recommendations" class="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors duration-200">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center space-x-3 mb-2">
+                <span class="px-3 py-1 rounded-full text-sm font-medium" [class]="getPriorityColor(rec.priority)">
+                  {{ rec.priority }} priority
+                </span>
+                <h3 class="font-medium text-gray-900">{{ rec.title }}</h3>
+              </div>
+              <p class="text-gray-700 mb-3">{{ rec.description }}</p>
+              <div class="flex items-center space-x-4 text-sm">
+                <span class="flex items-center space-x-1">
+                  <span class="text-gray-600">Effort:</span>
+                  <span [class]="getEffortColor(rec.effort)" class="font-medium">{{ rec.effort }}</span>
+                </span>
+                <span class="flex items-center space-x-1">
+                  <span class="text-gray-600">Impact:</span>
+                  <span [class]="getImpactColor(rec.impact)" class="font-medium">{{ rec.impact }}</span>
+                </span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button class="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors duration-200" title="View details">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+              </button>
+              <button class="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors duration-200" title="Mark as implemented">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk Timeline -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div class="p-6 border-b border-gray-200">
+      <h2 class="text-xl font-semibold text-gray-900">Risk Timeline</h2>
+      <p class="text-gray-600 mt-1">Historical risk assessment trends</p>
+    </div>
+    <div class="p-6">
+      <div class="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+        <div class="text-center text-gray-500">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+          <p class="text-lg font-medium">Risk Trend Chart</p>
+          <p class="text-sm">Historical risk assessment data will be displayed here</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
