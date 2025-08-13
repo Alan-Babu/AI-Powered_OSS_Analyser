@@ -18,6 +18,11 @@ export interface Vulnerability {
   reference: string;
   fixVersion: string;
   remediation: string;
+  severity: string;
+  status: string;
+  discovered: string;
+  affected: string[];
+  cvss: number;
 }
 
 export interface Dependency {
@@ -35,6 +40,28 @@ export interface RiskReport {
   repoUrl: string;
   riskScore: number;
   dependencies: Dependency[];
+  dependenciestemp:{
+    total: number;
+    vulnerable: number;
+    direct: number;
+    outdated: number;
+  };
+  repository: {
+    name: string;
+    language: string;
+    size: number;
+  };
+  security:{
+    overallRisk: string;
+    riskScore: number;
+    vulnerabilities: Vulnerability[];
+  };
+  license: {
+    type: string;
+    risk: string;
+    compatible: boolean;
+  }
+
 }
 
 @Injectable({ providedIn: 'root' })
