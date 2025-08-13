@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ApiService, RiskReport } from '../../services/api.service';
 
 @Component({
   selector: 'app-risk-assessment',
@@ -12,19 +13,19 @@ export class RiskAssessmentComponent implements OnInit {
   
   riskMetrics = {
     overallRisk: 'medium',
-    riskScore: 6.8,
-    criticalIssues: 3,
-    highIssues: 7,
-    mediumIssues: 12,
-    lowIssues: 8
+    riskScore: 0,
+    criticalIssues: 0,
+    highIssues: 0,
+    mediumIssues: 0,
+    lowIssues: 0
   };
 
   riskFactors = [
-    { name: 'Dependency Vulnerabilities', weight: 0.3, score: 7.5, impact: 'high' },
-    { name: 'Code Quality Issues', weight: 0.25, score: 6.2, impact: 'medium' },
-    { name: 'License Compliance', weight: 0.2, score: 4.8, impact: 'low' },
-    { name: 'Security Practices', weight: 0.15, score: 8.1, impact: 'high' },
-    { name: 'Maintenance Activity', weight: 0.1, score: 5.5, impact: 'medium' }
+    { name: 'Dependency Vulnerabilities', weight: 0.3, score: 0, impact: 'high' },
+    { name: 'Code Quality Issues', weight: 0.25, score: 0, impact: 'medium' },
+    { name: 'License Compliance', weight: 0.2, score: 0, impact: 'low' },
+    { name: 'Security Practices', weight: 0.15, score: 0, impact: 'high' },
+    { name: 'Maintenance Activity', weight: 0.1, score: 0, impact: 'medium' }
   ];
 
   recommendations = [
@@ -58,31 +59,43 @@ export class RiskAssessmentComponent implements OnInit {
     }
   ];
 
+  constructor(private readonly api: ApiService) {}
+
   ngOnInit() {
-    this.calculateRiskScore();
+    this.loadMetrics();
   }
 
-  calculateRiskScore() {
-    let weightedScore = 0;
-    let totalWeight = 0;
-    
-    this.riskFactors.forEach(factor => {
-      weightedScore += factor.score * factor.weight;
-      totalWeight += factor.weight;
+  loadMetrics() {
+    this.api.getReports().subscribe((reports: RiskReport[]) => {
+      const allDeps = reports.flatMap(r => r.dependencies || []);
+      const allVulns = allDeps.flatMap(d => d.vulnerabilities || []);
+
+      this.riskMetrics.highIssues = allVulns.filter(v => (v as any).severity === 'high' || (v.cvssScore ?? 0) >= 7).length;
+      this.riskMetrics.mediumIssues = allVulns.filter(v => (v as any).severity === 'medium' || ((v.cvssScore ?? 0) >= 4 && (v.cvssScore ?? 0) < 7)).length;
+      this.riskMetrics.lowIssues = allVulns.filter(v => (v as any).severity === 'low' || (v.cvssScore ?? 0) < 4).length;
+      this.riskMetrics.criticalIssues = allVulns.filter(v => (v as any).severity === 'critical' || (v.cvssScore ?? 0) >= 9).length;
+
+      // Compute overall risk: average of report scores (0-10 scale)
+      const scores = reports.map(r => r.riskScore ?? 0);
+      const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      this.riskMetrics.riskScore = Number(avg.toFixed(1));
+
+      // Map to overall risk bucket
+      if (this.riskMetrics.riskScore >= 8) this.riskMetrics.overallRisk = 'critical';
+      else if (this.riskMetrics.riskScore >= 6) this.riskMetrics.overallRisk = 'high';
+      else if (this.riskMetrics.riskScore >= 4) this.riskMetrics.overallRisk = 'medium';
+      else this.riskMetrics.overallRisk = 'low';
+
+      // Set risk factors heuristically based on issue distribution
+      const totalIssues = allVulns.length || 1;
+      this.riskFactors = [
+        { name: 'Dependency Vulnerabilities', weight: 0.3, score: Math.min(10, (allVulns.length / 50) * 10), impact: 'high' },
+        { name: 'Code Quality Issues', weight: 0.25, score: 6.0, impact: 'medium' },
+        { name: 'License Compliance', weight: 0.2, score: 4.0, impact: 'low' },
+        { name: 'Security Practices', weight: 0.15, score: Math.min(10, (this.riskMetrics.highIssues / totalIssues) * 10), impact: 'high' },
+        { name: 'Maintenance Activity', weight: 0.1, score: 5.0, impact: 'medium' }
+      ];
     });
-    
-    this.riskMetrics.riskScore = weightedScore / totalWeight;
-    
-    // Determine overall risk level
-    if (this.riskMetrics.riskScore >= 8) {
-      this.riskMetrics.overallRisk = 'critical';
-    } else if (this.riskMetrics.riskScore >= 6) {
-      this.riskMetrics.overallRisk = 'high';
-    } else if (this.riskMetrics.riskScore >= 4) {
-      this.riskMetrics.overallRisk = 'medium';
-    } else {
-      this.riskMetrics.overallRisk = 'low';
-    }
   }
 
   getRiskColor(risk: string): string {

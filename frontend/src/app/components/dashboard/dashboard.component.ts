@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { ApiService, RepositoryMetadata, RiskReport } from '../../services/api.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -22,33 +23,54 @@ export class DashboardComponent implements OnInit {
   recentScans: any[] = [];
   topVulnerabilities: any[] = [];
 
+  constructor(private readonly api: ApiService) {}
+
   ngOnInit() {
     this.loadDashboardData();
   }
 
+  private toRiskBucket(score: number): 'high' | 'medium' | 'low' {
+    if (score >= 7) return 'high';
+    if (score >= 4) return 'medium';
+    return 'low';
+  }
+
   loadDashboardData() {
-    // Mock data for now - will be replaced with actual API calls
-    this.stats = {
-      totalRepositories: 156,
-      scannedRepositories: 142,
-      highRiskVulnerabilities: 23,
-      mediumRiskVulnerabilities: 67,
-      lowRiskVulnerabilities: 134
-    };
+    this.api.getRepositories().subscribe((repos: RepositoryMetadata[]) => {
+      this.stats.totalRepositories = repos?.length || 0;
+    });
 
-    this.recentScans = [
-      { id: 1, name: 'spring-boot-starter', status: 'completed', risk: 'medium', lastScan: '2 hours ago' },
-      { id: 2, name: 'react-security', status: 'completed', risk: 'high', lastScan: '4 hours ago' },
-      { id: 3, name: 'node-express-api', status: 'scanning', risk: 'low', lastScan: '6 hours ago' },
-      { id: 4, name: 'python-django-app', status: 'completed', risk: 'low', lastScan: '1 day ago' }
-    ];
+    this.api.getReports().subscribe((reports: RiskReport[]) => {
+      const allDeps = reports.flatMap(r => r.dependencies || []);
+      const allVulns = allDeps.flatMap(d => d.vulnerabilities || []);
 
-    this.topVulnerabilities = [
-      { name: 'CVE-2023-1234', severity: 'high', affected: 45, description: 'SQL Injection vulnerability' },
-      { name: 'CVE-2023-5678', severity: 'medium', affected: 32, description: 'Cross-site scripting (XSS)' },
-      { name: 'CVE-2023-9012', severity: 'high', affected: 28, description: 'Remote code execution' },
-      { name: 'CVE-2023-3456', severity: 'medium', affected: 19, description: 'Authentication bypass' }
-    ];
+      this.stats.scannedRepositories = reports?.length || 0;
+
+      const high = allVulns.filter(v => (v as any).severity === 'high' || (v.cvssScore ?? 0) >= 7).length;
+      const medium = allVulns.filter(v => (v as any).severity === 'medium' || ((v.cvssScore ?? 0) >= 4 && (v.cvssScore ?? 0) < 7)).length;
+      const low = allVulns.filter(v => (v as any).severity === 'low' || (v.cvssScore ?? 0) < 4).length;
+      this.stats.highRiskVulnerabilities = high;
+      this.stats.mediumRiskVulnerabilities = medium;
+      this.stats.lowRiskVulnerabilities = low;
+
+      this.recentScans = reports.slice(-5).map(r => ({
+        id: r.id,
+        name: r.repoUrl?.split('/').pop() ?? r.repoUrl,
+        status: 'completed',
+        risk: this.toRiskBucket(r.riskScore ?? 0),
+        lastScan: 'recently'
+      })).reverse();
+
+      this.topVulnerabilities = (allVulns || [])
+        .sort((a, b) => (b.cvssScore ?? 0) - (a.cvssScore ?? 0))
+        .slice(0, 5)
+        .map(v => ({
+          name: v.cve || v.title,
+          severity: (v as any).severity || this.toRiskBucket(v.cvssScore ?? 0),
+          affected: 1,
+          description: v.description
+        }));
+    });
   }
 
   getRiskColor(risk: string): string {

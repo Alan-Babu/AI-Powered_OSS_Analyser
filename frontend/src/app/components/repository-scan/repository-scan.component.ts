@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ApiService, RiskReport } from '../../services/api.service';
 
 @Component({
   selector: 'app-repository-scan',
@@ -14,10 +15,10 @@ export class RepositoryScanComponent {
   scanForm: FormGroup;
   isScanning = false;
   scanProgress = 0;
-  scanResults: any = null;
+  scanResults: RiskReport | null = null;
   scanHistory: any[] = [];
 
-  constructor(private fb: FormBuilder) {
+  constructor(private readonly fb: FormBuilder, private readonly api: ApiService) {
     this.scanForm = this.fb.group({
       repositoryUrl: ['', [Validators.required, Validators.pattern('https?://.*')]],
       scanType: ['full', Validators.required],
@@ -30,29 +31,24 @@ export class RepositoryScanComponent {
   }
 
   loadScanHistory() {
-    // Mock data - will be replaced with actual API calls
-    this.scanHistory = [
-      {
-        id: 1,
-        name: 'spring-boot-starter',
-        url: 'https://github.com/spring-projects/spring-boot-starter-parent',
+    this.api.getReports().subscribe(reports => {
+      this.scanHistory = (reports || []).map((r, idx) => ({
+        id: r.id ?? idx,
+        name: r.repoUrl?.split('/').pop() ?? r.repoUrl,
+        url: r.repoUrl,
         status: 'completed',
-        risk: 'medium',
-        lastScan: '2 hours ago',
-        vulnerabilities: 12,
-        dependencies: 156
-      },
-      {
-        id: 2,
-        name: 'react-security',
-        url: 'https://github.com/facebook/react',
-        status: 'completed',
-        risk: 'high',
-        lastScan: '4 hours ago',
-        vulnerabilities: 23,
-        dependencies: 89
-      }
-    ];
+        risk: this.toRiskBucket(r.riskScore ?? 0),
+        lastScan: 'recently',
+        vulnerabilities: (r.dependencies || []).reduce((acc, d) => acc + (d.vulnerabilities?.length || 0), 0),
+        dependencies: r.dependencies?.length || 0
+      }));
+    });
+  }
+
+  private toRiskBucket(score: number): 'high' | 'medium' | 'low' {
+    if (score >= 7) return 'high';
+    if (score >= 4) return 'medium';
+    return 'low';
   }
 
   onSubmit() {
@@ -66,50 +62,29 @@ export class RepositoryScanComponent {
     this.scanProgress = 0;
     this.scanResults = null;
 
-    // Simulate scan progress
-    const interval = setInterval(() => {
-      this.scanProgress += Math.random() * 15;
-      if (this.scanProgress >= 100) {
-        this.scanProgress = 100;
+    // Begin backend scan
+    const url = this.scanForm.value.repositoryUrl as string;
+    this.api.scanRepository(url).subscribe({
+      next: (report) => {
+        // Simulate progress to 100% once backend responds
+        const interval = setInterval(() => {
+          this.scanProgress = Math.min(100, this.scanProgress + 25);
+          if (this.scanProgress >= 100) {
+            clearInterval(interval);
+            this.isScanning = false;
+            this.completeScan(report);
+          }
+        }, 300);
+      },
+      error: () => {
         this.isScanning = false;
-        this.completeScan();
-        clearInterval(interval);
       }
-    }, 500);
+    });
   }
 
-  completeScan() {
-    // Mock scan results
-    this.scanResults = {
-      repository: {
-        name: 'sample-repo',
-        url: this.scanForm.value.repositoryUrl,
-        language: 'JavaScript',
-        size: '2.4 MB',
-        stars: 1250,
-        forks: 89
-      },
-      security: {
-        overallRisk: 'medium',
-        vulnerabilities: [
-          { id: 'CVE-2023-1234', severity: 'high', description: 'SQL Injection vulnerability', affected: 'database.js' },
-          { id: 'CVE-2023-5678', severity: 'medium', description: 'Cross-site scripting (XSS)', affected: 'ui.js' }
-        ],
-        riskScore: 7.2
-      },
-      dependencies: {
-        total: 45,
-        direct: 12,
-        transitive: 33,
-        outdated: 8,
-        vulnerable: 3
-      },
-      license: {
-        type: 'MIT',
-        compatible: true,
-        risk: 'low'
-      }
-    };
+  completeScan(report: RiskReport) {
+    this.scanResults = report;
+    this.loadScanHistory();
   }
 
   getRiskColor(risk: string): string {
