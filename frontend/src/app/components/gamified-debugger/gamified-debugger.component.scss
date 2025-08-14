@@ -1,0 +1,283 @@
+.game-container {
+  .game-header {
+    .score-display {
+      text-align: right;
+      
+      .score-value {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .level-value {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .lives-value {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+    }
+  }
+  
+  .challenge-container {
+    .code-snippet {
+      background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+      border: 1px solid #374151;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      
+      pre {
+        font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+        line-height: 1.5;
+        
+        code {
+          color: #10b981;
+          text-shadow: 0 0 5px rgba(16, 185, 129, 0.3);
+        }
+      }
+      
+      .code-header {
+        background: #374151;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #4b5563;
+        
+        .difficulty-badge {
+          font-size: 0.75rem;
+          font-weight: 600;
+          padding: 0.25rem 0.5rem;
+          border-radius: 0.25rem;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+      }
+    }
+    
+    .answer-options {
+      .answer-option {
+        transition: all 0.2s ease;
+        border: 2px solid #e5e7eb;
+        cursor: pointer;
+        
+        &:hover:not(:disabled) {
+          border-color: #3b82f6;
+          background-color: #eff6ff;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        &:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+        
+        &.correct {
+          border-color: #10b981;
+          background-color: #f0fdf4;
+          animation: correctPulse 0.6s ease-out;
+        }
+        
+        &.incorrect {
+          border-color: #ef4444;
+          background-color: #fef2f2;
+          animation: incorrectShake 0.6s ease-out;
+        }
+        
+        .answer-indicator {
+          width: 1.5rem;
+          height: 1.5rem;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 600;
+          transition: all 0.2s ease;
+        }
+      }
+    }
+    
+    .explanation {
+      animation: slideDown 0.4s ease-out;
+      
+      &.success {
+        border-color: #10b981;
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      }
+      
+      &.error {
+        border-color: #ef4444;
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+      }
+    }
+  }
+  
+  .game-controls {
+    .challenge-list {
+      .challenge-item {
+        transition: all 0.2s ease;
+        
+        &:hover {
+          transform: translateX(4px);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .difficulty-badge {
+          font-size: 0.75rem;
+          font-weight: 600;
+          padding: 0.25rem 0.5rem;
+          border-radius: 0.25rem;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+      }
+    }
+    
+    .leaderboard {
+      .leaderboard-item {
+        transition: all 0.2s ease;
+        
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        &.first-place {
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border-color: #f59e0b;
+          
+          .rank-indicator {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            animation: goldGlow 2s ease-in-out infinite;
+          }
+        }
+        
+        .rank-indicator {
+          width: 2rem;
+          height: 2rem;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
+  
+  .statistics-grid {
+    .stat-card {
+      transition: all 0.3s ease;
+      
+      &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+      }
+      
+      .stat-icon {
+        background: linear-gradient(135deg, currentColor 0%, rgba(255, 255, 255, 0.8) 100%);
+        opacity: 0.9;
+      }
+    }
+  }
+  
+  .game-over-modal {
+    animation: modalSlideIn 0.3s ease-out;
+    
+    .modal-content {
+      background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    }
+    
+    .game-over-icon {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      border: 2px solid #fca5a5;
+      
+      svg {
+        color: #dc2626;
+      }
+    }
+  }
+}
+
+// Animations
+@keyframes correctPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+@keyframes incorrectShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes goldGlow {
+  0%, 100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.8); }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+// Timer animations
+.timer-warning {
+  animation: timerPulse 1s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .game-container {
+    .game-header {
+      flex-direction: column;
+      gap: 1rem;
+      
+      .score-display {
+        text-align: center;
+      }
+    }
+    
+    .challenge-container {
+      .code-snippet {
+        font-size: 0.875rem;
+      }
+    }
+    
+    .game-controls {
+      grid-template-columns: 1fr;
+    }
+  }
+}

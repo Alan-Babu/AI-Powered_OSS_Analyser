@@ -1,137 +1,253 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiService, RiskReport } from '../../services/api.service';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ApiService, RiskReport, Dependency } from '../../services/api.service';
 
 @Component({
   selector: 'app-risk-assessment',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './risk-assessment.component.html',
   styleUrl: './risk-assessment.component.scss'
 })
 export class RiskAssessmentComponent implements OnInit {
   
+  riskForm: FormGroup;
+  riskReports: RiskReport[] = [];
+  selectedReport: RiskReport | null = null;
+  isLoading = false;
+  errorMessage: string | null = null;
+  
+  // Risk Analysis
   riskMetrics = {
-    overallRisk: 'medium',
-    riskScore: 0,
-    criticalIssues: 0,
-    highIssues: 0,
-    mediumIssues: 0,
-    lowIssues: 0
+    overallRisk: 0,
+    dependencyRisk: 0,
+    vulnerabilityRisk: 0,
+    licenseRisk: 0,
+    codeQualityRisk: 0
+  };
+  
+  // AI Predictions
+  aiRiskPrediction: any = null;
+  isPredicting = false;
+  
+  // Filters
+  riskLevelFilter: string = 'all';
+  dateRangeFilter: string = 'all';
+  
+  // Charts data
+  riskDistribution = {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0
   };
 
-  riskFactors = [
-    { name: 'Dependency Vulnerabilities', weight: 0.3, score: 0, impact: 'high' },
-    { name: 'Code Quality Issues', weight: 0.25, score: 0, impact: 'medium' },
-    { name: 'License Compliance', weight: 0.2, score: 0, impact: 'low' },
-    { name: 'Security Practices', weight: 0.15, score: 0, impact: 'high' },
-    { name: 'Maintenance Activity', weight: 0.1, score: 0, impact: 'medium' }
-  ];
-
-  recommendations = [
-    {
-      priority: 'high',
-      title: 'Update vulnerable dependencies',
-      description: 'Immediately update packages with known security vulnerabilities',
-      effort: 'low',
-      impact: 'high'
-    },
-    {
-      priority: 'high',
-      title: 'Implement input validation',
-      description: 'Add proper input sanitization to prevent injection attacks',
-      effort: 'medium',
-      impact: 'high'
-    },
-    {
-      priority: 'medium',
-      title: 'Add security headers',
-      description: 'Implement security headers to protect against common attacks',
-      effort: 'low',
-      impact: 'medium'
-    },
-    {
-      priority: 'medium',
-      title: 'Code review process',
-      description: 'Establish mandatory security code review for all changes',
-      effort: 'high',
-      impact: 'medium'
-    }
-  ];
-
-  constructor(private readonly api: ApiService) {}
-
-  ngOnInit() {
-    this.loadMetrics();
-  }
-
-  loadMetrics() {
-    this.api.getReports().subscribe((reports: RiskReport[]) => {
-      const allDeps = reports.flatMap(r => r.dependencies || []);
-      const allVulns = allDeps.flatMap(d => d.vulnerabilities || []);
-
-      this.riskMetrics.highIssues = allVulns.filter(v => (v as any).severity === 'high' || (v.cvssScore ?? 0) >= 7).length;
-      this.riskMetrics.mediumIssues = allVulns.filter(v => (v as any).severity === 'medium' || ((v.cvssScore ?? 0) >= 4 && (v.cvssScore ?? 0) < 7)).length;
-      this.riskMetrics.lowIssues = allVulns.filter(v => (v as any).severity === 'low' || (v.cvssScore ?? 0) < 4).length;
-      this.riskMetrics.criticalIssues = allVulns.filter(v => (v as any).severity === 'critical' || (v.cvssScore ?? 0) >= 9).length;
-
-      // Compute overall risk: average of report scores (0-10 scale)
-      const scores = reports.map(r => r.riskScore ?? 0);
-      const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-      this.riskMetrics.riskScore = Number(avg.toFixed(1));
-
-      // Map to overall risk bucket
-      if (this.riskMetrics.riskScore >= 8) this.riskMetrics.overallRisk = 'critical';
-      else if (this.riskMetrics.riskScore >= 6) this.riskMetrics.overallRisk = 'high';
-      else if (this.riskMetrics.riskScore >= 4) this.riskMetrics.overallRisk = 'medium';
-      else this.riskMetrics.overallRisk = 'low';
-
-      // Set risk factors heuristically based on issue distribution
-      const totalIssues = allVulns.length || 1;
-      this.riskFactors = [
-        { name: 'Dependency Vulnerabilities', weight: 0.3, score: Math.min(10, (allVulns.length / 50) * 10), impact: 'high' },
-        { name: 'Code Quality Issues', weight: 0.25, score: 6.0, impact: 'medium' },
-        { name: 'License Compliance', weight: 0.2, score: 4.0, impact: 'low' },
-        { name: 'Security Practices', weight: 0.15, score: Math.min(10, (this.riskMetrics.highIssues / totalIssues) * 10), impact: 'high' },
-        { name: 'Maintenance Activity', weight: 0.1, score: 5.0, impact: 'medium' }
-      ];
+  constructor(
+    private readonly fb: FormBuilder,
+    private readonly api: ApiService
+  ) {
+    this.riskForm = this.fb.group({
+      riskLevel: ['all'],
+      dateRange: ['all'],
+      searchTerm: ['']
     });
   }
 
-  getRiskColor(risk: string): string {
-    switch (risk.toLowerCase()) {
-      case 'critical': return 'text-red-800 bg-red-100';
-      case 'high': return 'text-red-600 bg-red-100';
-      case 'medium': return 'text-yellow-600 bg-yellow-100';
-      case 'low': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
+  ngOnInit() {
+    this.loadRiskReports();
+    this.setupFormListeners();
+  }
+
+  setupFormListeners() {
+    this.riskForm.valueChanges.subscribe(() => {
+      this.applyFilters();
+    });
+  }
+
+  loadRiskReports() {
+    this.isLoading = true;
+    this.errorMessage = null;
+
+    this.api.getReports().subscribe({
+      next: (reports) => {
+        this.riskReports = reports;
+        this.calculateRiskMetrics();
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('Error loading risk reports:', error);
+        this.errorMessage = 'Failed to load risk assessment data';
+        this.isLoading = false;
+      }
+    });
+  }
+
+  calculateRiskMetrics() {
+    if (this.riskReports.length === 0) return;
+
+    // Calculate overall risk from all reports
+    const totalRisk = this.riskReports.reduce((sum, report) => sum + (report.riskScore || 0), 0);
+    this.riskMetrics.overallRisk = totalRisk / this.riskReports.length;
+
+    // Calculate dependency risk
+    const allDependencies = this.riskReports.flatMap(r => r.dependencies || []);
+    const vulnerableDeps = allDependencies.filter(d => d.vulnerable);
+    this.riskMetrics.dependencyRisk = (vulnerableDeps.length / allDependencies.length) * 10;
+
+    // Calculate vulnerability risk
+    const allVulns = allDependencies.flatMap(d => d.vulnerabilities || []);
+    const highRiskVulns = allVulns.filter(v => (v.cvssScore || 0) >= 7.0);
+    this.riskMetrics.vulnerabilityRisk = (highRiskVulns.length / allVulns.length) * 10;
+
+    // Calculate risk distribution
+    this.riskDistribution = {
+      critical: allVulns.filter(v => (v.cvssScore || 0) >= 9.0).length,
+      high: allVulns.filter(v => (v.cvssScore || 0) >= 7.0 && (v.cvssScore || 0) < 9.0).length,
+      medium: allVulns.filter(v => (v.cvssScore || 0) >= 4.0 && (v.cvssScore || 0) < 7.0).length,
+      low: allVulns.filter(v => (v.cvssScore || 0) >= 0.1 && (v.cvssScore || 0) < 4.0).length
+    };
+  }
+
+  applyFilters() {
+    const filters = this.riskForm.value;
+    
+    // Apply risk level filter
+    if (filters.riskLevel !== 'all') {
+      this.riskReports = this.riskReports.filter(report => {
+        const risk = this.getRiskLevel(report.riskScore || 0);
+        return risk === filters.riskLevel;
+      });
+    }
+
+    // Apply date range filter (if implemented)
+    // This would require date fields in the RiskReport model
+  }
+
+  getRiskLevel(riskScore: number): string {
+    if (riskScore >= 8.0) return 'critical';
+    if (riskScore >= 6.0) return 'high';
+    if (riskScore >= 4.0) return 'medium';
+    if (riskScore >= 2.0) return 'low';
+    return 'minimal';
+  }
+
+  getRiskColor(riskLevel: string): string {
+    switch (riskLevel.toLowerCase()) {
+      case 'critical': return 'text-red-800 bg-red-200 border-red-300';
+      case 'high': return 'text-red-600 bg-red-100 border-red-200';
+      case 'medium': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
+      case 'low': return 'text-green-600 bg-green-100 border-green-200';
+      case 'minimal': return 'text-blue-600 bg-blue-100 border-blue-200';
+      default: return 'text-gray-600 bg-gray-100 border-gray-200';
     }
   }
 
-  getPriorityColor(priority: string): string {
-    switch (priority.toLowerCase()) {
-      case 'high': return 'text-red-600 bg-red-100';
-      case 'medium': return 'text-yellow-600 bg-yellow-100';
-      case 'low': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
+  selectReport(report: RiskReport) {
+    this.selectedReport = report;
+    this.aiRiskPrediction = null;
+  }
+
+  generateAIPrediction() {
+    if (!this.selectedReport) return;
+
+    this.isPredicting = true;
+    this.api.getRiskPrediction(this.selectedReport.dependencies || []).subscribe({
+      next: (prediction) => {
+        this.aiRiskPrediction = prediction;
+        this.isPredicting = false;
+      },
+      error: (error) => {
+        console.error('AI prediction error:', error);
+        this.aiRiskPrediction = { error: 'AI prediction failed. Please try again.' };
+        this.isPredicting = false;
+      }
+    });
+  }
+
+  generateKnowledgeGraph(repoUrl: string) {
+    this.api.generateKnowledgeGraph(repoUrl).subscribe({
+      next: (graph) => {
+        console.log('Knowledge graph generated:', graph);
+        // Navigate to knowledge graph component or display graph
+      },
+      error: (error) => {
+        console.error('Knowledge graph generation error:', error);
+        this.errorMessage = 'Failed to generate knowledge graph';
+      }
+    });
+  }
+
+  exportRiskReport(report: RiskReport) {
+    const csvContent = this.generateRiskCSV(report);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `risk-report-${report.id}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  private generateRiskCSV(report: RiskReport): string {
+    const headers = ['Repository', 'Risk Score', 'Dependencies', 'Vulnerabilities', 'Scan Date'];
+    const rows = [
+      [
+        report.repoUrl || '',
+        report.riskScore || '',
+        (report.dependencies || []).length,
+        (report.dependencies || []).reduce((acc, d) => acc + (d.vulnerabilities?.length || 0), 0),
+        report.scanDate || ''
+      ]
+    ];
+    
+    return [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+  }
+
+  getRiskTrend(reports: RiskReport[]): string {
+    if (reports.length < 2) return 'stable';
+    
+    const recent = reports.slice(-3);
+    const older = reports.slice(-6, -3);
+    
+    if (recent.length === 0 || older.length === 0) return 'stable';
+    
+    const recentAvg = recent.reduce((sum, r) => sum + (r.riskScore || 0), 0) / recent.length;
+    const olderAvg = older.reduce((sum, r) => sum + (r.riskScore || 0), 0) / older.length;
+    
+    if (recentAvg > olderAvg * 1.1) return 'increasing';
+    if (recentAvg < olderAvg * 0.9) return 'decreasing';
+    return 'stable';
+  }
+
+  getTrendIcon(trend: string): string {
+    switch (trend) {
+      case 'increasing': return '↗️';
+      case 'decreasing': return '↘️';
+      default: return '→';
     }
   }
 
-  getImpactColor(impact: string): string {
-    switch (impact.toLowerCase()) {
-      case 'high': return 'text-red-600';
-      case 'medium': return 'text-yellow-600';
-      case 'low': return 'text-green-600';
-      default: return 'text-gray-600';
-    }
+  clearFilters() {
+    this.riskForm.patchValue({
+      riskLevel: 'all',
+      dateRange: 'all',
+      searchTerm: ''
+    });
   }
 
-  getEffortColor(effort: string): string {
-    switch (effort.toLowerCase()) {
-      case 'high': return 'text-red-600';
-      case 'medium': return 'text-yellow-600';
-      case 'low': return 'text-green-600';
-      default: return 'text-gray-600';
-    }
+  refreshData() {
+    this.loadRiskReports();
+  }
+
+  clearError() {
+    this.errorMessage = null;
+  }
+
+  // Helper methods for template
+  getTotalVulnerabilities(report: RiskReport): number {
+    return (report.dependencies || []).reduce((acc, dep) => acc + (dep.vulnerabilities?.length || 0), 0);
   }
 }
