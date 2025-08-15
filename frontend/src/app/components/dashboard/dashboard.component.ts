@@ -154,6 +154,7 @@ export class DashboardComponent implements OnInit {
     }
   }
 
+
   refreshData() {
     this.loadDashboardData();
     this.checkServicesHealth();
