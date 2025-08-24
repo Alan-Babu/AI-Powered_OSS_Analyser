@@ -8,34 +8,263 @@ import com.ossrisk.oss.repository.RiskReportRepository;
 import com.ossrisk.oss.utility.GitCloner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ArrayList;
 
 @Service
 public class GitHubService {
-    @Autowired private DependencyAnalyzerService dependencyAnalyzer;
-    @Autowired private VulnerabilityCheckerService vulnerabilityChecker;
-    @Autowired private RiskScorerService riskScorer;
-    @Autowired private RepositoryMetadataRepository metadataRepo;
-    @Autowired private RiskReportRepository riskReportRepo;
+    private final EnhancedDependencyAnalyzerService dependencyAnalyzer;
+    private final VulnerabilityCheckerService vulnerabilityChecker;
+    private final EnhancedRiskScorerService riskScorer;
+    private final RepositoryMetadataRepository metadataRepo;
+    private final RiskReportRepository riskReportRepo;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
-    public RiskReport processRepository(String repoUrl){
-        File repoDir = GitCloner.cloneRepo(repoUrl);
-
-        String[] parts = repoUrl.replace("https://github.com/","").split("/");
-        String owner = parts[0];
-        String project = parts[1];
-
-        metadataRepo.save(new RepositoryMetadata(null,repoUrl,owner,project));
-
-        List<Dependency> deps = dependencyAnalyzer.analyze(repoDir);
-        System.out.println("Dependencies found: " + deps.size());
-        deps.forEach(d -> System.out.println(d.getEcosystem() + " - " + d.getName() + ":" + d.getVersion()));
-        List<Dependency> checkedDeps = vulnerabilityChecker.check(deps);
-        double score = riskScorer.calculate(checkedDeps);
-        RiskReport report = new RiskReport(null,repoUrl,score,checkedDeps);
-        return riskReportRepo.save(report);
+    public GitHubService(
+            EnhancedDependencyAnalyzerService dependencyAnalyzer,
+            VulnerabilityCheckerService vulnerabilityChecker,
+            EnhancedRiskScorerService riskScorer,
+            RepositoryMetadataRepository metadataRepo,
+            RiskReportRepository riskReportRepo,
+            RestTemplate restTemplate,
+            ObjectMapper objectMapper) {
+        this.dependencyAnalyzer = dependencyAnalyzer;
+        this.vulnerabilityChecker = vulnerabilityChecker;
+        this.riskScorer = riskScorer;
+        this.metadataRepo = metadataRepo;
+        this.riskReportRepo = riskReportRepo;
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
     }
 
+    public RiskReport processRepository(String repoUrl) {
+        try {
+            // Clone repository
+            File repoDir = GitCloner.cloneRepo(repoUrl);
+            
+            // Extract repository info
+            String[] parts = repoUrl.replace("https://github.com/", "").split("/");
+            String owner = parts[0];
+            String project = parts[1];
+
+            // Save repository metadata
+            metadataRepo.save(new RepositoryMetadata(null, repoUrl, owner, project));
+
+            // Analyze dependencies with enhanced API data
+            List<Dependency> deps = dependencyAnalyzer.analyze(repoDir);
+            System.out.println("Dependencies found: " + deps.size());
+            deps.forEach(d -> System.out.println(d.getEcosystem() + " - " + d.getName() + ":" + d.getVersion()));
+
+            // Check vulnerabilities
+            List<Dependency> checkedDeps = vulnerabilityChecker.check(deps);
+            
+            // Calculate risk score using enhanced risk scorer
+            double score = calculateRiskScore(checkedDeps);
+            
+            // Create and save risk report
+            RiskReport report = new RiskReport(null, repoUrl, score, checkedDeps);
+            return riskReportRepo.save(report);
+            
+        } catch (Exception e) {
+            System.err.println("Error processing repository: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Return error report
+            RiskReport errorReport = new RiskReport();
+            errorReport.setRepoUrl(repoUrl);
+            errorReport.setRiskScore(0.0);
+            return errorReport;
+        }
+    }
+
+    public RiskReport processRepositoryWithAI(String repoUrl) {
+        try {
+            // Process repository normally first
+            RiskReport report = processRepository(repoUrl);
+            
+            // Enhance with AI services
+            report = enhanceWithAIServices(report);
+            
+            return report;
+            
+        } catch (Exception e) {
+            System.err.println("Error processing repository with AI: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Return error report
+            RiskReport errorReport = new RiskReport();
+            errorReport.setRepoUrl(repoUrl);
+            errorReport.setRiskScore(0.0);
+            return errorReport;
+        }
+    }
+
+    private RiskReport enhanceWithAIServices(RiskReport report) {
+        try {
+            // Enhance with AI risk model
+            if (report.getDependencies() != null && !report.getDependencies().isEmpty()) {
+                List<Dependency> enhancedDeps = new ArrayList<>();
+                
+                for (Dependency dep : report.getDependencies()) {
+                    // Convert to AI service format
+                    Map<String, Object> dependencyData = convertDependencyToAIFormat(dep);
+                    
+                    // Call AI risk model service
+                    Map<String, Object> aiRiskAssessment = callAIRiskModel(dependencyData);
+                    
+                    // Update dependency with AI insights
+                    Dependency enhancedDep = enhanceDependencyWithAI(dep, aiRiskAssessment);
+                    enhancedDeps.add(enhancedDep);
+                }
+                
+                report.setDependencies(enhancedDeps);
+                
+                // Recalculate overall risk score
+                double enhancedScore = calculateRiskScore(enhancedDeps);
+                report.setRiskScore(enhancedScore);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error enhancing with AI services: " + e.getMessage());
+        }
+        
+        return report;
+    }
+
+    private Map<String, Object> convertDependencyToAIFormat(Dependency dep) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("package_name", dep.getName());
+        data.put("version", dep.getVersion());
+        data.put("ecosystem", dep.getEcosystem());
+        data.put("last_updated_days", calculateDaysSinceUpdate(dep.getLastUpdated()));
+        data.put("download_count", dep.getDownloadCount());
+        data.put("star_count", dep.getStarCount());
+        data.put("fork_count", dep.getForkCount());
+        data.put("issue_count", dep.getIssueCount());
+        data.put("maintainer_count", dep.getMaintainerCount());
+        data.put("license_type", dep.getLicenseType() != null ? dep.getLicenseType() : "Unknown");
+        data.put("has_security_policy", dep.getHasSecurityPolicy() != null ? dep.getHasSecurityPolicy() : false);
+        data.put("has_code_of_conduct", dep.getHasCodeOfConduct() != null ? dep.getHasCodeOfConduct() : false);
+        data.put("has_contributing_guide", dep.getHasContributingGuide() != null ? dep.getHasContributingGuide() : false);
+        data.put("vulnerability_count", dep.getVulnerabilityCount() != null ? dep.getVulnerabilityCount() : 0);
+        data.put("outdated_days", dep.getOutdatedDays() != null ? dep.getOutdatedDays() : 0);
+        data.put("transitive_dependencies", dep.getTransitiveDependencies() != null ? dep.getTransitiveDependencies() : 0);
+        data.put("dependency_depth", dep.getDependencyDepth() != null ? dep.getDependencyDepth() : 0);
+        data.put("description", dep.getDescription());
+        data.put("homepage", dep.getHomepage());
+        data.put("repository", dep.getRepository());
+        
+        return data;
+    }
+
+    private Map<String, Object> callAIRiskModel(Map<String, Object> dependencyData) {
+        try {
+            String url = "http://localhost:8003/risk/assess";
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(dependencyData, headers);
+            
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                entity,
+                JsonNode.class
+            );
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return objectMapper.convertValue(response.getBody(), Map.class);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error calling AI risk model: " + e.getMessage());
+        }
+        
+        // Return default assessment if AI service fails
+        Map<String, Object> defaultAssessment = new HashMap<>();
+        defaultAssessment.put("risk_score", 0.5);
+        defaultAssessment.put("risk_level", "MEDIUM");
+        defaultAssessment.put("confidence", 0.0);
+        defaultAssessment.put("risk_factors", new ArrayList<>());
+        defaultAssessment.put("recommendations", new ArrayList<>());
+        
+        return defaultAssessment;
+    }
+
+    private Dependency enhanceDependencyWithAI(Dependency dep, Map<String, Object> aiAssessment) {
+        // Update dependency with AI insights
+        if (aiAssessment.containsKey("risk_score")) {
+            // You might want to store AI risk score separately or use it to adjust existing fields
+            // For now, we'll just log the AI assessment
+            System.out.println("AI Assessment for " + dep.getName() + ": " + aiAssessment.get("risk_level"));
+        }
+        
+        return dep;
+    }
+
+    private int calculateDaysSinceUpdate(String lastUpdated) {
+        if (lastUpdated == null || lastUpdated.isEmpty()) {
+            return 0;
+        }
+        
+        try {
+            // Parse the date string and calculate days since update
+            // This is a simplified implementation
+            return 30; // Default to 30 days
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private double calculateRiskScore(List<Dependency> dependencies) {
+        if (dependencies == null || dependencies.isEmpty()) {
+            return 0.0;
+        }
+        
+        double totalRisk = 0.0;
+        int dependencyCount = 0;
+        
+        for (Dependency dep : dependencies) {
+            double dependencyRisk = 0.0;
+            
+            // Add risk based on vulnerabilities
+            if (dep.getVulnerabilities() != null) {
+                dependencyRisk += dep.getVulnerabilities().size() * 0.5;
+            }
+            
+            // Add risk based on outdated status
+            if (dep.isOutdated()) {
+                dependencyRisk += 0.3;
+            }
+            
+            // Add risk based on vulnerable status
+            if (dep.isVulnerable()) {
+                dependencyRisk += 0.5;
+            }
+            
+            // Add risk based on vulnerability count
+            if (dep.getVulnerabilityCount() != null) {
+                dependencyRisk += dep.getVulnerabilityCount() * 0.2;
+            }
+            
+            totalRisk += Math.min(dependencyRisk, 10.0); // Cap at 10.0
+            dependencyCount++;
+        }
+        
+        return dependencyCount > 0 ? totalRisk / dependencyCount : 0.0;
+    }
 }

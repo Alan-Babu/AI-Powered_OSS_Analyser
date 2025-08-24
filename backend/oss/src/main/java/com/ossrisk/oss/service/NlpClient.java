@@ -1,61 +1,131 @@
 package com.ossrisk.oss.service;
 
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationArguments;
+import com.ossrisk.oss.model.RiskReport;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
 
-@Slf4j
 @Service
 public class NlpClient {
-
-    private final WebClient webClient;
-
-
-    public NlpClient(WebClient.Builder builder){
-        this.webClient =   builder.baseUrl("http://localhost:8001").build();
-
+    
+    private final RestTemplate restTemplate;
+    
+    public NlpClient(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
     }
-
-    public Map<String,Object>extractFixandRemediation(String descritption){
-        try{
-            return webClient.post()
-                    .uri("/nlp/extract")
-                    .bodyValue(Map.of("description",descritption))
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .onErrorResume(e->{
-                        log.error("NLP Service call Failed: {}", e.getMessage());
-                        return Mono.just(Map.of(
-                                "fixVersion", "No Fix Yet",
-                                "remediation","No Remediation Provided",
-                                "confidence", 0.0
-                        ));
-                    })
-                    .block();
-        }catch (Exception e){
-            log.error("Error Calling NLP Service: {}",e.getMessage());
-            return Map.of(
-                    "fixVersion", "No Fix Yet",
-                    "remediation","No Remediation Provided",
-                    "confidence", 0.0
-            );
+    
+    @Value("${ai-ml.services.nlp-explainer.url:http://localhost:8002}")
+    private String nlpExplainerUrl;
+    
+    @Value("${ai-ml.services.chat.url:http://localhost:8000}")
+    private String chatUrl;
+    
+    public RiskReport addAIInsights(RiskReport report) {
+        try {
+            // Add AI insights to vulnerabilities
+            if (report.getDependencies() != null) {
+                for (var dependency : report.getDependencies()) {
+                    if (dependency.getVulnerabilities() != null) {
+                        for (var vulnerability : dependency.getVulnerabilities()) {
+                            // Get NLP explanation for vulnerability
+                            Map<String, String> request = new HashMap<>();
+                            request.put("text", vulnerability.getDescription());
+                            
+                            try {
+                                Map<String, Object> nlpResult = restTemplate.postForObject(
+                                    nlpExplainerUrl + "/explain",
+                                    request,
+                                    Map.class
+                                );
+                                
+                                if (nlpResult != null && nlpResult.containsKey("remediation")) {
+                                    vulnerability.setRemediation(nlpResult.get("remediation").toString());
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Error getting NLP insights for vulnerability: " + e.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error adding AI insights: " + e.getMessage());
         }
+        
+        return report;
     }
-
+    
+    public String chatWithAI(String message) {
+        try {
+            Map<String, String> request = new HashMap<>();
+            request.put("message", message);
+            
+            Map<String, Object> response = restTemplate.postForObject(
+                chatUrl + "/chat",
+                request,
+                Map.class
+            );
+            
+            if (response != null && response.containsKey("response")) {
+                return response.get("response").toString();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error in chat with AI: " + e.getMessage());
+        }
+        
+        return "Sorry, I'm unable to process your request at the moment.";
+    }
+    
     public String getFixVersion(String description) {
-        Map<String, Object> result = extractFixandRemediation(description);
-        Object fixVersion = result.get("fixVersion");
-        return fixVersion != null ? fixVersion.toString() : "No Fix Yet";
+        try {
+            Map<String, String> request = new HashMap<>();
+            request.put("text", description);
+            request.put("type", "fix_version");
+            
+            Map<String, Object> response = restTemplate.postForObject(
+                nlpExplainerUrl + "/extract",
+                request,
+                Map.class
+            );
+            
+            if (response != null && response.containsKey("fix_version")) {
+                return response.get("fix_version").toString();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error extracting fix version: " + e.getMessage());
+        }
+        
+        return "Unknown";
     }
-
+    
     public String getRemediation(String description) {
-        Map<String, Object> result = extractFixandRemediation(description);
-        Object remediation = result.get("remediation");
-        return remediation != null ? remediation.toString() : "No Remediation Provided";
+        try {
+            Map<String, String> request = new HashMap<>();
+            request.put("text", description);
+            request.put("type", "remediation");
+            
+            Map<String, Object> response = restTemplate.postForObject(
+                nlpExplainerUrl + "/extract",
+                request,
+                Map.class
+            );
+            
+            if (response != null && response.containsKey("remediation")) {
+                return response.get("remediation").toString();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error extracting remediation: " + e.getMessage());
+        }
+        
+        return "No remediation information available.";
     }
-
 }

@@ -106,12 +106,12 @@
         <div *ngIf="isScanning" class="mt-6">
           <div class="flex items-center justify-between text-sm text-gray-600 mb-2">
             <span>Scan Progress</span>
-            <span>{{ scanProgress.progress.toFixed(0) }}%</span>
+            <span>{{ scanProgress?.progress?.toFixed(0) || 0 }}%</span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2">
-            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" [style.width.%]="scanProgress.progress"></div>
+            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" [style.width.%]="scanProgress?.progress || 0"></div>
           </div>
-          <div class="text-sm text-gray-600 mt-2">{{ scanProgress.currentStep }}</div>
+          <div class="text-sm text-gray-600 mt-2">{{ scanProgress?.currentStep || 'Initializing...' }}</div>
         </div>
 
         <!-- Error Message -->
@@ -266,22 +266,22 @@
                   </svg>
                 </div>
                 <div>
-                  <p class="font-medium text-gray-900">{{ scan.name }}</p>
-                  <p class="text-sm text-gray-500">{{ scan.url }}</p>
-                  <p class="text-xs text-gray-400">{{ scan.lastScan }}</p>
+                  <p class="font-medium text-gray-900">{{ scan.projectName || 'Unknown' }}</p>
+                  <p class="text-sm text-gray-500">{{ scan.repoUrl || 'No URL' }}</p>
+                  <p class="text-xs text-gray-400">{{ scan.lastScanDate || 'Unknown' }}</p>
                 </div>
               </div>
               <div class="flex items-center space-x-3">
                 <div class="text-right">
-                  <p class="text-sm text-gray-600">{{ scan.vulnerabilities }} vulnerabilities</p>
-                  <p class="text-sm text-gray-600">{{ scan.dependencies }} dependencies</p>
+                  <p class="text-sm text-gray-600">{{ scan.vulnerabilityCount || 0 }} vulnerabilities</p>
+                  <p class="text-sm text-gray-600">{{ scan.dependencyCount || 0 }} dependencies</p>
                 </div>
                 <div class="flex items-center space-x-2">
-                  <span class="px-3 py-1 rounded-full text-xs font-medium" [class]="getRiskColor(scan.risk)">
-                    {{ scan.risk }}
+                  <span class="px-3 py-1 rounded-full text-xs font-medium" [class]="getRiskColor(getRiskLevel(scan.riskScore || 0))">
+                    {{ getRiskLevel(scan.riskScore || 0) }}
                   </span>
-                  <span class="px-3 py-1 rounded-full text-xs font-medium" [class]="getStatusColor(scan.status)">
-                    {{ scan.status }}
+                  <span class="px-3 py-1 rounded-full text-xs font-medium" [class]="getStatusColor(scan.status || 'unknown')">
+                    {{ scan.status || 'unknown' }}
                   </span>
                 </div>
               </div>

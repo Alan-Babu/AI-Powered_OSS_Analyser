@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { ApiService, RepositoryMetadata, RiskReport } from '../../services/api.service';
+import { EnhancedApiService, RepositoryMetadata, RiskReport, AIServiceHealth } from '../../services/enhanced-api.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard',
@@ -10,143 +11,180 @@ import { ApiService, RepositoryMetadata, RiskReport } from '../../services/api.s
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   
-  stats = {
-    totalRepositories: 0,
-    scannedRepositories: 0,
-    highRiskVulnerabilities: 0,
-    mediumRiskVulnerabilities: 0,
-    lowRiskVulnerabilities: 0,
-    criticalVulnerabilities: 0
-  };
-
-  recentScans: any[] = [];
-  topVulnerabilities: any[] = [];
+  // Real data from APIs
+  repositories: RepositoryMetadata[] = [];
+  recentReports: RiskReport[] = [];
+  servicesHealth: AIServiceHealth | null = null;
+  
+  // Dashboard statistics
+  totalRepositories = 0;
+  totalVulnerabilities = 0;
+  averageRiskScore = 0;
+  criticalVulnerabilities = 0;
+  highVulnerabilities = 0;
+  
+  // Loading states
   isLoading = true;
+  isLoadingRepositories = false;
+  isLoadingReports = false;
+  isLoadingHealth = false;
+  
+  // Error states
   errorMessage: string | null = null;
-  servicesHealth: any = {};
+  
+  private subscriptions: Subscription[] = [];
 
-  constructor(private readonly api: ApiService) {}
+  constructor(private apiService: EnhancedApiService) {}
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.loadDashboardData();
-    this.checkServicesHealth();
+    this.startPeriodicHealthCheck();
   }
 
-  private toRiskBucket(score: number): 'high' | 'medium' | 'low' {
-    if (score >= 7) return 'high';
-    if (score >= 4) return 'medium';
-    return 'low';
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 
-  loadDashboardData() {
+  loadDashboardData(): void {
     this.isLoading = true;
     this.errorMessage = null;
 
     // Load repositories
-    this.api.getRepositories().subscribe({
-      next: (repos: RepositoryMetadata[]) => {
-        this.stats.totalRepositories = repos?.length || 0;
+    this.loadRepositories();
+    
+    // Load recent reports
+    this.loadRecentReports();
+    
+    // Load services health
+    this.loadServicesHealth();
+  }
+
+  loadRepositories(): void {
+    this.isLoadingRepositories = true;
+    
+    const sub = this.apiService.getRepositories().subscribe({
+      next: (repos) => {
+        this.repositories = repos || [];
+        this.totalRepositories = this.repositories.length;
+        this.calculateDashboardStats();
+        this.isLoadingRepositories = false;
       },
       error: (error) => {
         console.error('Error loading repositories:', error);
-        this.errorMessage = 'Failed to load repository data';
+        this.errorMessage = 'Failed to load repositories';
+        this.isLoadingRepositories = false;
       }
     });
+    
+    this.subscriptions.push(sub);
+  }
 
-    // Load risk reports
-    this.api.getReports().subscribe({
-      next: (reports: RiskReport[]) => {
-        const allDeps = reports.flatMap(r => r.dependencies || []);
-        const allVulns = allDeps.flatMap(d => d.vulnerabilities || []);
-
-        this.stats.scannedRepositories = reports?.length || 0;
-
-        // Count vulnerabilities by severity
-        const critical = allVulns.filter(v => (v.severity === 'critical' || (v.cvssScore ?? 0) >= 9.0)).length;
-        const high = allVulns.filter(v => (v.severity === 'high' || ((v.cvssScore ?? 0) >= 7.0 && (v.cvssScore ?? 0) < 9.0))).length;
-        const medium = allVulns.filter(v => (v.severity === 'medium' || ((v.cvssScore ?? 0) >= 4.0 && (v.cvssScore ?? 0) < 7.0))).length;
-        const low = allVulns.filter(v => (v.severity === 'low' || ((v.cvssScore ?? 0) >= 0.1 && (v.cvssScore ?? 0) < 4.0))).length;
-        
-        this.stats.criticalVulnerabilities = critical;
-        this.stats.highRiskVulnerabilities = high;
-        this.stats.mediumRiskVulnerabilities = medium;
-        this.stats.lowRiskVulnerabilities = low;
-
-        // Recent scans
-        this.recentScans = reports.slice(-5).map(r => ({
-          id: r.id,
-          name: r.repoUrl?.split('/').pop() ?? r.repoUrl,
-          status: 'completed',
-          risk: this.toRiskBucket(r.riskScore ?? 0),
-          lastScan: r.scanDate || 'recently',
-          riskScore: r.riskScore,
-          vulnerabilities: allVulns.filter(v => 
-            allDeps.some(d => d.vulnerabilities?.some(vuln => vuln.id === v.id))
-          ).length
-        })).reverse();
-
-        // Top vulnerabilities
-        this.topVulnerabilities = (allVulns || [])
-          .sort((a, b) => (b.cvssScore ?? 0) - (a.cvssScore ?? 0))
-          .slice(0, 5)
-          .map(v => ({
-            name: v.cve || v.title,
-            severity: v.severity || this.toRiskBucket(v.cvssScore ?? 0),
-            cvssScore: v.cvssScore,
-            affected: 1,
-            description: v.description
-          }));
-
-        this.isLoading = false;
+  loadRecentReports(): void {
+    this.isLoadingReports = true;
+    
+    const sub = this.apiService.getReports().subscribe({
+      next: (reports) => {
+        this.recentReports = (reports || []).slice(0, 5); // Get latest 5 reports
+        this.calculateDashboardStats();
+        this.isLoadingReports = false;
       },
       error: (error) => {
         console.error('Error loading reports:', error);
-        this.errorMessage = 'Failed to load risk assessment data';
-        this.isLoading = false;
+        this.errorMessage = 'Failed to load recent reports';
+        this.isLoadingReports = false;
       }
     });
+    
+    this.subscriptions.push(sub);
   }
 
-  checkServicesHealth() {
-    this.api.checkAIServicesHealth().subscribe({
+  loadServicesHealth(): void {
+    this.isLoadingHealth = true;
+    
+    const sub = this.apiService.checkAIServicesHealth().subscribe({
       next: (health) => {
         this.servicesHealth = health;
+        this.isLoadingHealth = false;
       },
       error: (error) => {
-        console.error('Error checking services health:', error);
+        console.error('Error loading services health:', error);
         this.servicesHealth = {
-          securityScanner: 'unknown',
-          nlpExplainer: 'unknown',
-          riskModel: 'unknown',
-          knowledgeGraph: 'unknown'
+          securityScanner: 'unhealthy',
+          nlpExplainer: 'unhealthy',
+          riskModel: 'unhealthy',
+          knowledgeGraph: 'unhealthy'
         };
+        this.isLoadingHealth = false;
       }
     });
+    
+    this.subscriptions.push(sub);
   }
 
-  getRiskColor(risk: string): string {
-    switch (risk.toLowerCase()) {
-      case 'critical': return 'text-red-800 bg-red-200';
-      case 'high': return 'text-red-600 bg-red-100';
+  startPeriodicHealthCheck(): void {
+    // Check health every 30 seconds
+    const healthCheckInterval = setInterval(() => {
+      this.loadServicesHealth();
+    }, 30000);
+    
+    // Clean up interval on component destroy
+    this.subscriptions.push(new Subscription(() => {
+      clearInterval(healthCheckInterval);
+    }));
+  }
+
+  calculateDashboardStats(): void {
+    // Calculate total vulnerabilities from all reports
+    this.totalVulnerabilities = this.recentReports.reduce((total, report) => {
+      return total + (report.totalVulnerabilities || 0);
+    }, 0);
+    
+    // Calculate average risk score
+    const validReports = this.recentReports.filter(r => r.riskScore !== undefined);
+    if (validReports.length > 0) {
+      this.averageRiskScore = validReports.reduce((sum, report) => sum + (report.riskScore || 0), 0) / validReports.length;
+    }
+    
+    // Calculate critical and high vulnerabilities
+    this.criticalVulnerabilities = this.recentReports.reduce((total, report) => {
+      return total + (report.criticalVulnerabilities || 0);
+    }, 0);
+    
+    this.highVulnerabilities = this.recentReports.reduce((total, report) => {
+      return total + (report.highVulnerabilities || 0);
+    }, 0);
+    
+    // Update loading state
+    if (!this.isLoadingRepositories && !this.isLoadingReports && !this.isLoadingHealth) {
+      this.isLoading = false;
+    }
+  }
+
+  getRiskLevel(riskScore: number): string {
+    if (riskScore >= 8.0) return 'critical';
+    if (riskScore >= 6.0) return 'high';
+    if (riskScore >= 4.0) return 'medium';
+    if (riskScore >= 2.0) return 'low';
+    return 'minimal';
+  }
+
+  getRiskColor(riskScore: number): string {
+    const level = this.getRiskLevel(riskScore);
+    switch (level) {
+      case 'critical': return 'text-red-600 bg-red-100';
+      case 'high': return 'text-orange-600 bg-orange-100';
       case 'medium': return 'text-yellow-600 bg-yellow-100';
       case 'low': return 'text-green-600 bg-green-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   }
 
-  getStatusColor(status: string): string {
-    switch (status.toLowerCase()) {
-      case 'completed': return 'text-green-600 bg-green-100';
-      case 'scanning': return 'text-blue-600 bg-blue-100';
-      case 'failed': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  }
-
   getServiceHealthColor(service: string): string {
-    const health = this.servicesHealth[service];
+    if (!this.servicesHealth) return 'text-gray-600 bg-gray-100';
+    
+    const health = this.servicesHealth[service as keyof AIServiceHealth];
     switch (health) {
       case 'healthy': return 'text-green-600 bg-green-100';
       case 'unhealthy': return 'text-red-600 bg-red-100';
@@ -154,13 +192,39 @@ export class DashboardComponent implements OnInit {
     }
   }
 
-
-  refreshData() {
-    this.loadDashboardData();
-    this.checkServicesHealth();
+  getServiceHealthIcon(service: string): string {
+    if (!this.servicesHealth) return 'question-circle';
+    
+    const health = this.servicesHealth[service as keyof AIServiceHealth];
+    switch (health) {
+      case 'healthy': return 'check-circle';
+      case 'unhealthy': return 'times-circle';
+      default: return 'question-circle';
+    }
   }
 
-  clearError() {
+  refreshData(): void {
+    this.loadDashboardData();
+  }
+
+  clearError(): void {
     this.errorMessage = null;
+  }
+
+  getRepositoryName(repoUrl: string): string {
+    return repoUrl.split('/').pop() || repoUrl;
+  }
+
+  getTimeAgo(dateString: string): string {
+    if (!dateString) return 'Unknown';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return `${Math.floor(diffInSeconds / 86400)}d ago`;
   }
 }

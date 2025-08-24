@@ -29,6 +29,7 @@ test-output/
 *.swp
 # Ignore OS generated files
 .DS_Store
+cloned-repos/
 
 
 # Ignore IntelliJ IDEA project files

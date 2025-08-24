@@ -6,6 +6,11 @@ export const environment = {
     securityScanner: 'http://localhost:8001',
     nlpExplainer: 'http://localhost:8002',
     riskModel: 'http://localhost:8003',
-    knowledgeGraph: 'http://localhost:8004'
+    knowledgeGraph: 'http://localhost:8004',
+    chatbot: 'http://localhost:8005'
   }
 };
+
+
+
+

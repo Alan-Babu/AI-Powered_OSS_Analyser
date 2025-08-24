@@ -107,3 +107,26 @@
     opacity: 0.8;
   }
 }
+
+.markdown-content {
+  overflow-x: auto;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem; /* smaller font */
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #ddd;
+  padding: 6px;
+  text-align: left;
+  word-wrap: break-word;
+}
+
+.markdown-content th {
+  background-color: #f4f4f4;
+  font-weight: bold;
+}

@@ -1,6 +1,8 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { GameService, Challenge, LeaderboardEntry, GameStats } from '../../services/game-service.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-gamified-debugger',
@@ -24,75 +26,35 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
   Math = Math;
   String = String;
   
-  // Challenge data
-  currentChallenge = {
-    id: 1,
-    title: 'Find the SQL Injection',
-    description: 'Identify the SQL injection vulnerability in the code snippet below',
-    code: `function getUserData(userId) {
-  const query = "SELECT * FROM users WHERE id = " + userId;
-  return db.execute(query);
-}`,
-    options: [
-      'Line 2: String concatenation in SQL query',
-      'Line 3: Database execution',
-      'Line 1: Function declaration',
-      'No vulnerability found'
-    ],
-    correctAnswer: 0,
-    explanation: 'String concatenation in SQL queries creates injection vulnerabilities. Use parameterized queries instead.',
-    difficulty: 'easy'
-  };
-
-  challenges = [
-    {
-      id: 1,
-      title: 'Find the SQL Injection',
-      difficulty: 'easy',
-      points: 100
-    },
-    {
-      id: 2,
-      title: 'Identify XSS Vulnerability',
-      difficulty: 'medium',
-      points: 150
-    },
-    {
-      id: 3,
-      title: 'Spot Authentication Bypass',
-      difficulty: 'hard',
-      points: 200
-    },
-    {
-      id: 4,
-      title: 'Find Path Traversal',
-      difficulty: 'medium',
-      points: 150
-    },
-    {
-      id: 5,
-      title: 'Identify CSRF Vulnerability',
-      difficulty: 'hard',
-      points: 200
-    }
-  ];
-
-  leaderboard = [
-    { name: 'SecurityMaster', score: 2500, level: 5 },
-    { name: 'CodeGuardian', score: 2100, level: 4 },
-    { name: 'VulnHunter', score: 1800, level: 4 },
-    { name: 'SecureDev', score: 1500, level: 3 }
-  ];
-
+  // Challenge data from service
+  currentChallenge: Challenge | null = null;
+  challenges: Challenge[] = [];
+  leaderboard: LeaderboardEntry[] = [];
+  gameStats: GameStats | null = null;
+  
   // Game statistics
   challengesCompleted = 0;
   correctAnswers = 0;
   totalTimeSpent = 0;
   challengeStartTime = Date.now();
+  
+  // Loading states
+  isLoading = false;
+  isLoadingChallenges = false;
+  isLoadingLeaderboard = false;
+  isLoadingStats = false;
+  
+  // Error states
+  errorMessage: string | null = null;
+  
+  private subscriptions: Subscription[] = [];
 
   private timer: any;
 
+  constructor(private gameService: GameService) {}
+
   ngOnInit() {
+    this.loadGameData();
     this.startGame();
   }
 
@@ -100,6 +62,69 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
     if (this.timer) {
       clearInterval(this.timer);
     }
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  loadGameData(): void {
+    this.loadChallenges();
+    this.loadLeaderboard();
+    this.loadGameStats();
+  }
+
+  loadChallenges(): void {
+    this.isLoadingChallenges = true;
+    
+    const sub = this.gameService.getChallenges().subscribe({
+      next: (challenges) => {
+        this.challenges = challenges;
+        this.loadChallengeByLevel();
+        this.isLoadingChallenges = false;
+      },
+      error: (error) => {
+        console.error('Error loading challenges:', error);
+        this.errorMessage = 'Failed to load challenges';
+        this.isLoadingChallenges = false;
+      }
+    });
+    
+    this.subscriptions.push(sub);
+  }
+
+  loadLeaderboard(): void {
+    this.isLoadingLeaderboard = true;
+    
+    const sub = this.gameService.getLeaderboard().subscribe({
+      next: (leaderboard) => {
+        this.leaderboard = leaderboard;
+        this.isLoadingLeaderboard = false;
+      },
+      error: (error) => {
+        console.error('Error loading leaderboard:', error);
+        this.isLoadingLeaderboard = false;
+      }
+    });
+    
+    this.subscriptions.push(sub);
+  }
+
+  loadGameStats(): void {
+    this.isLoadingStats = true;
+    
+    const sub = this.gameService.getUserStats().subscribe({
+      next: (stats) => {
+        this.gameStats = stats;
+        this.challengesCompleted = stats.challengesCompleted;
+        this.correctAnswers = stats.correctAnswers;
+        this.totalTimeSpent = stats.totalTimeSpent;
+        this.isLoadingStats = false;
+      },
+      error: (error) => {
+        console.error('Error loading game stats:', error);
+        this.isLoadingStats = false;
+      }
+    });
+    
+    this.subscriptions.push(sub);
   }
 
   startGame() {
@@ -112,10 +137,12 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
   }
 
   submitAnswer(selectedAnswer: number) {
-    if (this.isAnswerSubmitted) return;
+    if (this.isAnswerSubmitted || !this.currentChallenge) return;
     
     this.isAnswerSubmitted = true;
     this.isAnswerCorrect = selectedAnswer === this.currentChallenge.correctAnswer;
+    
+    const timeSpent = (Date.now() - this.challengeStartTime) / 1000;
     
     if (this.isAnswerCorrect) {
       this.score += this.getPointsForDifficulty(this.currentChallenge.difficulty);
@@ -131,7 +158,21 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
     }
     
     // Update total time spent
-    this.totalTimeSpent += (Date.now() - this.challengeStartTime) / 1000;
+    this.totalTimeSpent += timeSpent;
+    
+    // Submit result to backend
+    this.gameService.submitChallengeResult(
+      this.currentChallenge.id,
+      this.isAnswerCorrect,
+      timeSpent
+    ).subscribe({
+      next: (result) => {
+        console.log('Challenge result submitted:', result);
+      },
+      error: (error) => {
+        console.error('Failed to submit challenge result:', error);
+      }
+    });
   }
 
   getPointsForDifficulty(difficulty: string): number {
@@ -157,11 +198,11 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
       return 'border-gray-300 hover:border-blue-300 hover:bg-blue-50';
     }
     
-    if (answerIndex === this.currentChallenge.correctAnswer) {
+    if (answerIndex === this.currentChallenge?.correctAnswer) {
       return 'border-green-500 bg-green-50';
     }
     
-    if (this.isAnswerSubmitted && answerIndex !== this.currentChallenge.correctAnswer) {
+    if (this.isAnswerSubmitted && answerIndex !== this.currentChallenge?.correctAnswer) {
       return 'border-red-500 bg-red-50';
     }
     
@@ -173,11 +214,11 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
       return 'border-gray-400 text-gray-600';
     }
     
-    if (answerIndex === this.currentChallenge.correctAnswer) {
+    if (answerIndex === this.currentChallenge?.correctAnswer) {
       return 'border-green-500 bg-green-500 text-white';
     }
     
-    if (this.isAnswerSubmitted && answerIndex !== this.currentChallenge.correctAnswer) {
+    if (this.isAnswerSubmitted && answerIndex !== this.currentChallenge?.correctAnswer) {
       return 'border-red-500 bg-red-500 text-white';
     }
     
@@ -199,121 +240,30 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
   }
 
   loadChallengeByLevel() {
-    const challengeIndex = (this.currentLevel - 1) % this.challenges.length;
-    const challenge = this.challenges[challengeIndex];
+    // Find a challenge that matches the current level or difficulty
+    const availableChallenges = this.challenges.filter(c => {
+      if (this.currentLevel <= 2) return c.difficulty === 'easy';
+      if (this.currentLevel <= 4) return c.difficulty === 'medium';
+      return c.difficulty === 'hard';
+    });
     
-    switch (challenge.id) {
-      case 1:
-        this.currentChallenge = {
-          id: 1,
-          title: 'Find the SQL Injection',
-          description: 'Identify the SQL injection vulnerability in the code snippet below',
-          code: `function getUserData(userId) {
-  const query = "SELECT * FROM users WHERE id = " + userId;
-  return db.execute(query);
-}`,
-          options: [
-            'Line 2: String concatenation in SQL query',
-            'Line 3: Database execution',
-            'Line 1: Function declaration',
-            'No vulnerability found'
-          ],
-          correctAnswer: 0,
-          explanation: 'String concatenation in SQL queries creates injection vulnerabilities. Use parameterized queries instead.',
-          difficulty: 'easy'
-        };
-        break;
-        
-      case 2:
-        this.currentChallenge = {
-          id: 2,
-          title: 'Identify XSS Vulnerability',
-          description: 'Find the cross-site scripting vulnerability in this code',
-          code: `function displayUserInput(input) {
-  document.getElementById('output').innerHTML = input;
-}`,
-          options: [
-            'Line 1: Function declaration',
-            'Line 2: innerHTML assignment with user input',
-            'Line 2: getElementById usage',
-            'No vulnerability found'
-          ],
-          correctAnswer: 1,
-          explanation: 'Using innerHTML with user input creates XSS vulnerabilities. Use textContent or proper sanitization.',
-          difficulty: 'medium'
-        };
-        break;
-        
-      case 3:
-        this.currentChallenge = {
-          id: 3,
-          title: 'Spot Authentication Bypass',
-          description: 'Identify the authentication bypass vulnerability',
-          code: `function checkAccess(userId, role) {
-  if (role === 'admin') {
-    return true;
-  }
-  return false;
-}`,
-          options: [
-            'Line 1: Function declaration',
-            'Line 2: Role check',
-            'Line 3: Return statement',
-            'No authentication check for userId'
-          ],
-          correctAnswer: 3,
-          explanation: 'The function only checks the role parameter but never validates the userId, allowing potential bypass.',
-          difficulty: 'hard'
-        };
-        break;
-        
-      case 4:
-        this.currentChallenge = {
-          id: 4,
-          title: 'Find Path Traversal',
-          description: 'Identify the path traversal vulnerability',
-          code: `function readFile(filename) {
-  const path = '/uploads/' + filename;
-  return fs.readFileSync(path);
-}`,
-          options: [
-            'Line 1: Function declaration',
-            'Line 2: Path construction',
-            'Line 3: File reading',
-            'No validation of filename parameter'
-          ],
-          correctAnswer: 3,
-          explanation: 'The filename parameter is not validated, allowing attackers to traverse directories with "../" sequences.',
-          difficulty: 'medium'
-        };
-        break;
-        
-      case 5:
-        this.currentChallenge = {
-          id: 5,
-          title: 'Identify CSRF Vulnerability',
-          description: 'Find the Cross-Site Request Forgery vulnerability',
-          code: `function updateProfile(userId, data) {
-  // No CSRF token validation
-  return db.updateUser(userId, data);
-}`,
-          options: [
-            'Line 1: Function declaration',
-            'Line 2: Comment',
-            'Line 3: Database update',
-            'Missing CSRF protection'
-          ],
-          correctAnswer: 3,
-          explanation: 'The function lacks CSRF token validation, making it vulnerable to cross-site request forgery attacks.',
-          difficulty: 'hard'
-        };
-        break;
+    if (availableChallenges.length > 0) {
+      // Select a random challenge from the available ones
+      const randomIndex = Math.floor(Math.random() * availableChallenges.length);
+      this.currentChallenge = availableChallenges[randomIndex];
+    } else {
+      // Fallback to first challenge if none available
+      this.currentChallenge = this.challenges[0] || null;
     }
+    
+    this.challengeStartTime = Date.now();
   }
 
   showSuccessMessage() {
     // Show success animation/message
-    console.log('Correct answer! +' + this.getPointsForDifficulty(this.currentChallenge.difficulty) + ' points');
+    if (this.currentChallenge) {
+      console.log('Correct answer! +' + this.getPointsForDifficulty(this.currentChallenge.difficulty) + ' points');
+    }
   }
 
   showErrorMessage() {
@@ -349,7 +299,9 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
     const currentPlayer = {
       name: 'Player',
       score: this.score,
-      level: this.currentLevel
+      level: this.currentLevel,
+      challengesCompleted: this.challengesCompleted,
+      averageTime: this.calculateAverageTime()
     };
     
     this.leaderboard.push(currentPlayer);

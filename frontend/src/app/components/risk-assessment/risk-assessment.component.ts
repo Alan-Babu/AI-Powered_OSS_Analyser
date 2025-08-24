@@ -1,18 +1,19 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ApiService, RiskReport, Dependency } from '../../services/api.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { EnhancedApiService, RiskReport, Vulnerability, Dependency } from '../../services/enhanced-api.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-risk-assessment',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule],
   templateUrl: './risk-assessment.component.html',
   styleUrl: './risk-assessment.component.scss'
 })
-export class RiskAssessmentComponent implements OnInit {
+export class RiskAssessmentComponent implements OnInit, OnDestroy {
   
-  riskForm: FormGroup;
+  riskForm: any; // FormGroup removed, replaced with any for now
   riskReports: RiskReport[] = [];
   selectedReport: RiskReport | null = null;
   isLoading = false;
@@ -43,33 +44,38 @@ export class RiskAssessmentComponent implements OnInit {
     low: 0
   };
 
+  private subscriptions: Subscription[] = [];
+
   constructor(
-    private readonly fb: FormBuilder,
-    private readonly api: ApiService
+    private readonly api: EnhancedApiService
   ) {
-    this.riskForm = this.fb.group({
-      riskLevel: ['all'],
-      dateRange: ['all'],
-      searchTerm: ['']
-    });
+    this.riskForm = {
+      riskLevel: 'all',
+      dateRange: 'all',
+      searchTerm: ''
+    };
   }
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.loadRiskReports();
     this.setupFormListeners();
   }
 
-  setupFormListeners() {
-    this.riskForm.valueChanges.subscribe(() => {
-      this.applyFilters();
-    });
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 
-  loadRiskReports() {
+  setupFormListeners() {
+    // this.riskForm.valueChanges.subscribe(() => {
+    //   this.applyFilters();
+    // });
+  }
+
+  loadRiskReports(): void {
     this.isLoading = true;
     this.errorMessage = null;
 
-    this.api.getReports().subscribe({
+    const sub = this.api.getReports().subscribe({
       next: (reports) => {
         this.riskReports = reports;
         this.calculateRiskMetrics();
@@ -81,9 +87,11 @@ export class RiskAssessmentComponent implements OnInit {
         this.isLoading = false;
       }
     });
+    
+    this.subscriptions.push(sub);
   }
 
-  calculateRiskMetrics() {
+  calculateRiskMetrics(): void {
     if (this.riskReports.length === 0) return;
 
     // Calculate overall risk from all reports
@@ -109,8 +117,8 @@ export class RiskAssessmentComponent implements OnInit {
     };
   }
 
-  applyFilters() {
-    const filters = this.riskForm.value;
+  applyFilters(): void {
+    const filters = this.riskForm;
     
     // Apply risk level filter
     if (filters.riskLevel !== 'all') {
@@ -148,11 +156,11 @@ export class RiskAssessmentComponent implements OnInit {
     this.aiRiskPrediction = null;
   }
 
-  generateAIPrediction() {
+  generateAIPrediction(): void {
     if (!this.selectedReport) return;
 
     this.isPredicting = true;
-    this.api.getRiskPrediction(this.selectedReport.dependencies || []).subscribe({
+    const sub = this.api.getRiskPrediction(this.selectedReport.dependencies || []).subscribe({
       next: (prediction) => {
         this.aiRiskPrediction = prediction;
         this.isPredicting = false;
@@ -163,10 +171,12 @@ export class RiskAssessmentComponent implements OnInit {
         this.isPredicting = false;
       }
     });
+    
+    this.subscriptions.push(sub);
   }
 
-  generateKnowledgeGraph(repoUrl: string) {
-    this.api.generateKnowledgeGraph(repoUrl).subscribe({
+  generateKnowledgeGraph(repoUrl: string): void {
+    const sub = this.api.generateKnowledgeGraph(repoUrl).subscribe({
       next: (graph) => {
         console.log('Knowledge graph generated:', graph);
         // Navigate to knowledge graph component or display graph
@@ -176,6 +186,8 @@ export class RiskAssessmentComponent implements OnInit {
         this.errorMessage = 'Failed to generate knowledge graph';
       }
     });
+    
+    this.subscriptions.push(sub);
   }
 
   exportRiskReport(report: RiskReport) {
@@ -230,19 +242,19 @@ export class RiskAssessmentComponent implements OnInit {
     }
   }
 
-  clearFilters() {
-    this.riskForm.patchValue({
+  clearFilters(): void {
+    this.riskForm = {
       riskLevel: 'all',
       dateRange: 'all',
       searchTerm: ''
-    });
+    };
   }
 
-  refreshData() {
+  refreshData(): void {
     this.loadRiskReports();
   }
 
-  clearError() {
+  clearError(): void {
     this.errorMessage = null;
   }
 

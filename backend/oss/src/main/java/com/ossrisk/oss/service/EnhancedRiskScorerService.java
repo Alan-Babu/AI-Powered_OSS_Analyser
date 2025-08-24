@@ -1,118 +1,111 @@
 package com.ossrisk.oss.service;
 
+import com.ossrisk.oss.model.RiskReport;
 import com.ossrisk.oss.model.Dependency;
-import com.ossrisk.oss.model.Vulnerability;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 
 @Service
 public class EnhancedRiskScorerService {
-
-    // Cache for risk scores to avoid recalculation
-    private final Map<String, Double> riskScoreCache = new ConcurrentHashMap<>();
     
-    // Risk weights for different factors
-    private static final double VULNERABILITY_WEIGHT = 0.4;
-    private static final double OUTDATED_WEIGHT = 0.25;
-    private static final double LICENSE_WEIGHT = 0.15;
-    private static final double MAINTENANCE_WEIGHT = 0.2;
-
-    @Cacheable(value = "riskScores", key = "#dependencies.hashCode()")
-    public double calculateEnhancedRiskScore(List<Dependency> dependencies) {
+    private final RestTemplate restTemplate;
+    
+    public EnhancedRiskScorerService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+    
+    @Value("${ai-ml.services.risk-model.url:http://localhost:8003}")
+    private String riskModelUrl;
+    
+    public RiskReport enhanceRiskAssessment(RiskReport report) {
+        try {
+            // Enhance each dependency with AI risk prediction
+            List<Dependency> enhancedDependencies = report.getDependencies();
+            if (enhancedDependencies != null) {
+                for (Dependency dep : enhancedDependencies) {
+                    Map<String, Object> dependencyData = new HashMap<>();
+                    dependencyData.put("package_name", dep.getName());
+                    dependencyData.put("version", dep.getVersion());
+                    dependencyData.put("ecosystem", dep.getEcosystem());
+                    dependencyData.put("vulnerability_count", dep.getVulnerabilities() != null ? dep.getVulnerabilities().size() : 0);
+                    dependencyData.put("outdated", dep.isOutdated());
+                    dependencyData.put("vulnerable", dep.isVulnerable());
+                    
+                    // Call AI service for risk prediction
+                    try {
+                        Map<String, Object> prediction = restTemplate.postForObject(
+                            riskModelUrl + "/predict", 
+                            dependencyData, 
+                            Map.class
+                        );
+                        
+                        if (prediction != null) {
+                            // Update dependency with AI insights
+                            if (prediction.containsKey("risk_score")) {
+                                dep.setRiskScore(((Number) prediction.get("risk_score")).doubleValue());
+                            }
+                            if (prediction.containsKey("risk_level")) {
+                                dep.setRiskLevel(prediction.get("risk_level").toString());
+                            }
+                            if (prediction.containsKey("recommendations")) {
+                                List<String> recommendations = (List<String>) prediction.get("recommendations");
+                                dep.setRecommendations(recommendations);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Log error but continue with other dependencies
+                        System.err.println("Error enhancing dependency " + dep.getName() + ": " + e.getMessage());
+                    }
+                }
+            }
+            
+            // Recalculate overall risk score
+            double enhancedRiskScore = calculateEnhancedRiskScore(enhancedDependencies);
+            report.setRiskScore(enhancedRiskScore);
+            
+        } catch (Exception e) {
+            System.err.println("Error enhancing risk assessment: " + e.getMessage());
+        }
+        
+        return report;
+    }
+    
+    private double calculateEnhancedRiskScore(List<Dependency> dependencies) {
         if (dependencies == null || dependencies.isEmpty()) {
             return 0.0;
         }
-
-        double totalScore = 0.0;
-        int totalDependencies = dependencies.size();
-
+        
+        double totalRisk = 0.0;
+        int dependencyCount = 0;
+        
         for (Dependency dep : dependencies) {
-            double dependencyScore = calculateDependencyRisk(dep);
-            totalScore += dependencyScore;
-        }
-
-        // Normalize score to 0-100 range
-        double normalizedScore = (totalScore / totalDependencies) * 100;
-        return Math.min(100.0, Math.max(0.0, normalizedScore));
-    }
-
-    private double calculateDependencyRisk(Dependency dependency) {
-        double riskScore = 0.0;
-
-        // Vulnerability risk (40% weight)
-        if (dependency.isVulnerable()) {
-            double vulnerabilityScore = calculateVulnerabilityScore(dependency.getVulnerabilities());
-            riskScore += vulnerabilityScore * VULNERABILITY_WEIGHT;
-        }
-
-        // Outdated dependency risk (25% weight)
-        if (dependency.isOutdated()) {
-            riskScore += 0.8 * OUTDATED_WEIGHT;
-        }
-
-        // License risk (15% weight)
-        double licenseRisk = calculateLicenseRisk(dependency);
-        riskScore += licenseRisk * LICENSE_WEIGHT;
-
-        // Maintenance risk (20% weight)
-        double maintenanceRisk = calculateMaintenanceRisk(dependency);
-        riskScore += maintenanceRisk * MAINTENANCE_WEIGHT;
-
-        return riskScore;
-    }
-
-    private double calculateVulnerabilityScore(List<Vulnerability> vulnerabilities) {
-        if (vulnerabilities == null || vulnerabilities.isEmpty()) {
-            return 0.0;
-        }
-
-        double maxCvssScore = 0.0;
-        for (Vulnerability vuln : vulnerabilities) {
-            if (vuln.getCvssScore() > maxCvssScore) {
-                maxCvssScore = vuln.getCvssScore();
+            double dependencyRisk = dep.getRiskScore() != null ? dep.getRiskScore() : 0.0;
+            
+            // Add risk based on vulnerabilities
+            if (dep.getVulnerabilities() != null) {
+                dependencyRisk += dep.getVulnerabilities().size() * 0.5;
             }
+            
+            // Add risk based on outdated status
+            if (dep.isOutdated()) {
+                dependencyRisk += 0.3;
+            }
+            
+            // Add risk based on vulnerable status
+            if (dep.isVulnerable()) {
+                dependencyRisk += 0.5;
+            }
+            
+            totalRisk += Math.min(dependencyRisk, 10.0); // Cap at 10.0
+            dependencyCount++;
         }
-
-        // Convert CVSS score (0-10) to risk score (0-1)
-        return maxCvssScore / 10.0;
-    }
-
-    private double calculateLicenseRisk(Dependency dependency) {
-        // This would integrate with license checking service
-        // For now, return a default risk score
-        return 0.3; // Medium risk
-    }
-
-    private double calculateMaintenanceRisk(Dependency dependency) {
-        // This would analyze commit frequency, last update, etc.
-        // For now, return a default risk score
-        return 0.2; // Low-medium risk
-    }
-
-    public Map<String, Object> getDetailedRiskAnalysis(List<Dependency> dependencies) {
-        Map<String, Object> analysis = new ConcurrentHashMap<>();
         
-        analysis.put("totalDependencies", dependencies.size());
-        analysis.put("vulnerableDependencies", dependencies.stream().filter(Dependency::isVulnerable).count());
-        analysis.put("outdatedDependencies", dependencies.stream().filter(Dependency::isOutdated).count());
-        analysis.put("overallRiskScore", calculateEnhancedRiskScore(dependencies));
-        
-        // Risk breakdown by ecosystem
-        Map<String, Long> ecosystemCounts = dependencies.stream()
-                .collect(java.util.stream.Collectors.groupingBy(
-                    dep -> dep.getEcosystem() != null ? dep.getEcosystem() : "Unknown",
-                    java.util.stream.Collectors.counting()
-                ));
-        analysis.put("ecosystemBreakdown", ecosystemCounts);
-        
-        return analysis;
-    }
-
-    public void clearCache() {
-        riskScoreCache.clear();
+        return dependencyCount > 0 ? totalRisk / dependencyCount : 0.0;
     }
 }

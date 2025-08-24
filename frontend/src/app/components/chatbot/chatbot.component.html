@@ -1,4 +1,8 @@
-<div class="chatbot-container bg-white rounded-xl shadow-lg border border-gray-200 h-[600px] flex flex-col">
+<div class="chatbot-container relative bg-white shadow-lg border border-gray-200 flex flex-col transition-all duration-300"
+  [ngClass]="{
+    'h-[600px] w-[800px] rounded-xl fixed bottom-4 right-4 z-50': !isFullScreen,
+    'h-screen w-screen top-0 left-0 fixed z-50 rounded-none': isFullScreen
+  }">
   <!-- Chatbot Header -->
   <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-xl">
     <div class="flex items-center space-x-3">
@@ -12,19 +16,43 @@
         <p class="text-blue-100 text-sm">Powered by OSS Risk Analyzer</p>
       </div>
     </div>
+    <button
+    (click)="toggleFullScreen()"
+    class="absolute top-4 right-4 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 rounded-full p-2 shadow-md focus:outline-none transition-opacity"
+    aria-label="Full Screen">
+      <svg *ngIf="!isFullScreen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3H5a2 2 0 00-2 2v3m16-3h-3m3 16v-3m0-10V5a2 2 0 00-2-2h-3m0 16h3a2 2 0 002-2v-3m-16 3v-3a2 2 0 012-2h3" />
+      </svg>
+      <svg *ngIf="isFullScreen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h6M4 4v6M20 20h-6M20 20v-6M4 20h6M4 20v-6M20 4h-6M20 4v6" />
+      </svg>
+    </button>
+
   </div>
+
 
   <!-- Messages Container -->
   <div class="flex-1 overflow-y-auto p-4 space-y-4" #messagesContainer>
     <div *ngFor="let message of messages" 
-         class="flex" 
-         [ngClass]="getMessageAlignment(message)">
+        class="flex" 
+        [ngClass]="getMessageAlignment(message)">
+
       <div class="max-w-xs lg:max-w-md">
-        <div class="px-4 py-2 rounded-lg shadow-sm" 
-             [ngClass]="getMessageClass(message)">
-          <p class="text-sm">{{ message.text }}</p>
-          <p class="text-xs opacity-70 mt-1">
-            {{ message.timestamp | date:'shortTime' }}
+        <div
+          class="px-4 py-2 rounded-lg shadow-sm p-3 rounded-2xl w-full max-w-[96%] break-words text-sm leading-relaxed overflow-x-auto"
+          [ngClass]="getMessageClass(message)"
+        >
+          <!-- User Message -->
+          <p *ngIf="message.sender === 'user'" class="text-sm">
+            {{ message.text }}
+          </p>
+
+          <!-- Bot Message (Markdown with tables, code, etc.) -->
+          <markdown *ngIf="message.sender === 'bot'" [data]="message.text"></markdown>
+
+          <!-- Timestamp -->
+          <p class="text-xs opacity-70 mt-1 text-right">
+            {{ message.timestamp | date: 'shortTime' }}
           </p>
         </div>
       </div>
@@ -37,8 +65,14 @@
           <div class="flex items-center space-x-1">
             <div class="flex space-x-1">
               <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-              <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-              <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+              <div
+                class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style="animation-delay: 0.1s"
+              ></div>
+              <div
+                class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style="animation-delay: 0.2s"
+              ></div>
             </div>
             <span class="text-xs text-gray-500 ml-2">AI is typing...</span>
           </div>
@@ -47,8 +81,10 @@
     </div>
   </div>
 
+
+
   <!-- Quick Actions -->
-  <div class="p-3 border-t border-gray-200">
+  <div *ngIf="!isTyping" class="p-3 border-t border-gray-200 ">
     <div class="flex flex-wrap gap-2 mb-3">
       <button *ngFor="let action of quickActions" 
               (click)="sendQuickAction(action)"

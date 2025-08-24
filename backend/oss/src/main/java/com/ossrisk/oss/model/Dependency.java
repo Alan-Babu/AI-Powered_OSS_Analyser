@@ -20,6 +20,30 @@ public class Dependency {
     private boolean outdated;
     private boolean vulnerable;
     private String ecosystem;
+    
+    // Enhanced fields for API data
+    private String lastUpdated;
+    private Integer downloadCount;
+    private Integer starCount;
+    private Integer maintainerCount;
+    private String description;
+    private String homepage;
+    private String repository;
+    private Integer issueCount;
+    private Integer forkCount;
+    private String licenseType;
+    private Boolean hasSecurityPolicy;
+    private Boolean hasCodeOfConduct;
+    private Boolean hasContributingGuide;
+    private Integer vulnerabilityCount;
+    private Integer outdatedDays;
+    private Integer transitiveDependencies;
+    private Integer dependencyDepth;
+    
+    // AI-enhanced risk fields
+    private Double riskScore;
+    private String riskLevel;
+    private List<String> recommendations;
 
     @OneToMany(mappedBy = "dependency", cascade=CascadeType.ALL, orphanRemoval = true)
     private List<Vulnerability> vulnerabilities = new ArrayList<>();
@@ -47,6 +71,4 @@ public class Dependency {
     public int hashCode() {
         return Objects.hash(name, version, ecosystem);
     }
-
-
 }

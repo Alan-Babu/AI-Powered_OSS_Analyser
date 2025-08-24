@@ -1,7 +1,7 @@
 import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../services/api.service';
+import { EnhancedApiService } from '../../services/enhanced-api.service';
 
 @Component({
   selector: 'app-knowledge-graph',
@@ -14,20 +14,12 @@ export class KnowledgeGraphComponent implements OnInit {
   
   @ViewChild('graphContainer') private graphContainer!: ElementRef;
 
-  graphData = {
-    nodes: [
-      { id: 'repo1', label: 'Spring Boot App', type: 'repository', risk: 'medium' },
-      { id: 'dep1', label: 'Spring Security', type: 'dependency', risk: 'low' },
-      { id: 'dep2', label: 'MySQL Connector', type: 'dependency', risk: 'medium' },
-      { id: 'vuln1', label: 'CVE-2023-1234', type: 'vulnerability', risk: 'high' },
-      { id: 'vuln2', label: 'CVE-2023-5678', type: 'vulnerability', risk: 'medium' }
-    ],
-    edges: [
-      { source: 'repo1', target: 'dep1', type: 'depends_on' },
-      { source: 'repo1', target: 'dep2', type: 'depends_on' },
-      { source: 'dep1', target: 'vuln1', type: 'has_vulnerability' },
-      { source: 'dep2', target: 'vuln2', type: 'has_vulnerability' }
-    ]
+  graphData: {
+    nodes: any[];
+    edges: any[];
+  } = {
+    nodes: [],
+    edges: []
   };
 
   selectedNode: any = null;
@@ -42,7 +34,7 @@ export class KnowledgeGraphComponent implements OnInit {
   isLoading = false;
   errorMessage = '';
 
-  constructor(private apiService: ApiService) {}
+  constructor(private apiService: EnhancedApiService) {}
 
   ngOnInit() {
     this.loadGraphData();
