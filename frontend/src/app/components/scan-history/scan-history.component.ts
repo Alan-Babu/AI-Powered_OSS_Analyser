@@ -9,7 +9,7 @@ import { Subscription } from 'rxjs';
   standalone: true,
   imports: [CommonModule, RouterModule],
   templateUrl: './scan-history.component.html',
-  styleUrl: './scan-history.component.scss'
+  styleUrls: ['./scan-history.component.scss']
 })
 export class ScanHistoryComponent implements OnInit, OnDestroy {
   reports: RiskReport[] = [];
@@ -46,6 +46,19 @@ export class ScanHistoryComponent implements OnInit, OnDestroy {
 
   getRepoName(url: string): string {
     return url?.split('/').pop() || url;
+  }
+
+  getDependencyCount(report: RiskReport): number {
+    return (report?.dependencies || []).length;
+  }
+
+  getVulnerabilityCount(report: RiskReport): number {
+    const deps = report?.dependencies || [];
+    let total = 0;
+    for (const dep of deps) {
+      total += (dep?.vulnerabilities || []).length;
+    }
+    return total;
   }
 }
 

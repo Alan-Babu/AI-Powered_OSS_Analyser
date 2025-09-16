@@ -403,6 +403,18 @@ def root():
         }
     }
 
+@app.post("/generate")
+async def generate_graph(payload: dict):
+    """
+    Frontend-compatible endpoint: accepts { repository_url } and returns a minimal graph
+    (Placeholder builds an empty graph structure so the UI can render.)
+    """
+    try:
+        # Build a minimal empty graph data so UI can render
+        return {"nodes": [], "edges": [], "metadata": {"total_nodes": 0, "total_edges": 0}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8003)
+    uvicorn.run(app, host="0.0.0.0", port=8004)

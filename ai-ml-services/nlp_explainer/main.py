@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import logging
 from extractor import extract_fix_and_remediation
+from typing import Any, Dict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +22,9 @@ class ExtractionResult(BaseModel):
     remediation: str = Field(..., description="Extracted remediation steps")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence score of extraction")
 
+class ExplainRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=10000, description="Text to explain (frontend compatibility)")
+
 @app.post("/nlp/extract", response_model=ExtractionResult)
 def extract_from_description(vulnerability: VulnerabilityText):
     """
@@ -38,6 +42,22 @@ def extract_from_description(vulnerability: VulnerabilityText):
     except Exception as e:
         logger.error(f"Error processing vulnerability description: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing description: {str(e)}")
+
+@app.post("/explain", response_model=Dict[str, Any])
+def explain(vuln: ExplainRequest):
+    """
+    Frontend-compatible endpoint: accepts { text } and returns structured result
+    """
+    try:
+        result = extract_fix_and_remediation(vuln.text)
+        return {
+            "explanation": result.get("remediation", ""),
+            "fixVersion": result.get("fixVersion", ""),
+            "confidence": result.get("confidence", 0.0),
+            "vulnerability_info": result.get("vulnerability_info", {}),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error explaining text: {str(e)}")
 
 @app.get("/health")
 def health_check():
@@ -84,4 +104,8 @@ def batch_extract_from_descriptions(vulnerabilities: list[VulnerabilityText]):
             })
     
     return {"results": results, "total": len(vulnerabilities)}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8002)
 

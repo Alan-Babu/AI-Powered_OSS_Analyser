@@ -1,6 +1,7 @@
 from fastapi import APIRouter,HTTPException,FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from chat import router as chat
+import uvicorn
 
 app = FastAPI()
 
@@ -18,3 +19,10 @@ app.add_middleware(
 )
 
 app.include_router(chat)
+
+@app.get("/health")
+def health():
+    return {"status": "healthy", "service": "chat", "version": "1.0.0"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

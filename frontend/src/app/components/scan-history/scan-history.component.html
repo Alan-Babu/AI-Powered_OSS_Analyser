@@ -13,7 +13,11 @@
     <div *ngFor="let report of reports" class="border rounded p-4 flex items-center justify-between">
       <div>
         <div class="font-medium">{{ getRepoName(report.repoUrl) }}</div>
-        <div class="text-sm text-gray-600">Risk: {{ report.riskScore | number:'1.1-1' }} | Deps: {{ report.dependencies?.length || 0 }} | Vulns: {{ (report.dependencies||[]).reduce((a,d)=> a + (d.vulnerabilities?.length||0), 0) }}</div>
+        <div class="text-sm text-gray-600">
+          Risk: {{ report.riskScore | number:'1.1-1' }} |
+          Deps: {{ getDependencyCount(report) }} |
+          Vulns: {{ getVulnerabilityCount(report) }}
+        </div>
       </div>
       <a [routerLink]="['/risk-assessment']" class="text-blue-600 underline">Details</a>
     </div>

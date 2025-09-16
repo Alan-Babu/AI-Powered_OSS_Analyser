@@ -140,12 +140,13 @@ public class EnhancedDependencyAnalyzerService {
         result.put("vulnerabilityCount", 0);
         
         try {
-            // Create OSSIndex request
+            // Create OSS Index request (expects an array of purls)
             Map<String, Object> request = new HashMap<>();
-            request.put("coordinates", buildCoordinate(dep));
+            request.put("coordinates", Collections.singletonList(buildCoordinate(dep)));
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("User-Agent", "OSS-Risk-Analyzer/1.0 (+https://github.com)");
             
             if (!ossIndexUsername.isEmpty() && !ossIndexToken.isEmpty()) {
                 String auth = ossIndexUsername + ":" + ossIndexToken;
@@ -154,25 +155,36 @@ public class EnhancedDependencyAnalyzerService {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
             
-            ResponseEntity<JsonNode> response = restTemplate.exchange(
-                ossIndexUrl,
-                HttpMethod.POST,
-                entity,
-                JsonNode.class
-            );
-            
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                JsonNode body = response.getBody();
-                if (body.isArray() && body.size() > 0) {
-                    JsonNode component = body.get(0);
-                    boolean hasVulns = component.has("vulnerabilities") && component.get("vulnerabilities").size() > 0;
-                    result.put("hasVulnerabilities", hasVulns);
-                    result.put("vulnerabilityCount", hasVulns ? component.get("vulnerabilities").size() : 0);
+            // Basic retry for transient 5xx
+            int attempts = 0;
+            while (attempts < 3) {
+                attempts++;
+                ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    ossIndexUrl,
+                    HttpMethod.POST,
+                    entity,
+                    JsonNode.class
+                );
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    JsonNode body = response.getBody();
+                    if (body.isArray() && body.size() > 0) {
+                        JsonNode component = body.get(0);
+                        boolean hasVulns = component.has("vulnerabilities") && component.get("vulnerabilities").size() > 0;
+                        result.put("hasVulnerabilities", hasVulns);
+                        result.put("vulnerabilityCount", hasVulns ? component.get("vulnerabilities").size() : 0);
+                    }
+                    break;
                 }
+                if (response.getStatusCode().is5xxServerError() && attempts < 3) {
+                    try { Thread.sleep(500L * attempts); } catch (InterruptedException ignored) {}
+                    continue;
+                }
+                break;
             }
             
         } catch (Exception e) {
             System.err.println("Error fetching vulnerability data for " + dep.getName() + ": " + e.getMessage());
+            // leave defaults; downstream will treat as unknown
         }
         
         return result;

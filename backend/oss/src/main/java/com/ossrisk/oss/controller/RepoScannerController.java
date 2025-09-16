@@ -306,6 +306,11 @@ public class RepoScannerController {
                         Map<String, Object> summary = (Map<String, Object>) aiResult.get("summary");
                         if (summary.containsKey("average_risk_score")) {
                             double aiRiskScore = ((Number) summary.get("average_risk_score")).doubleValue();
+                            // Normalize to 0-10 scale if needed and clamp
+                            if (aiRiskScore > 10.0) {
+                                aiRiskScore = aiRiskScore / 10.0;
+                            }
+                            aiRiskScore = Math.max(0.0, Math.min(10.0, aiRiskScore));
                             report.setRiskScore(aiRiskScore);
                         }
                     }
