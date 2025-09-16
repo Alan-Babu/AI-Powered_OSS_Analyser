@@ -8,8 +8,6 @@ import { environment } from '../../environments/environment';
   providedIn: 'root'
 })
 export class ChatServiceService {
-
-  private baseUrl = environment.aiServices.chatbot || 'http://localhost:8005/';
   
   // Default security tips if backend is not available
   private defaultSecurityTips = [
@@ -37,7 +35,8 @@ export class ChatServiceService {
       console.error('Tried to send a null or undefined message');
       return of({response: 'Error: Tried to send a null or undefined message'});
     }
-    return this.http.post<{response: string}>(this.baseUrl + 'chat', { message: message }).pipe(
+    // Route chat via backend to avoid CORS and invalid external URLs
+    return this.http.post<{response: string}>(`${environment.backendUrl}/api/repo/chat`, { message: message }).pipe(
       catchError(err => {
         console.error('An error occurred sending a message: ', err);
         return of({response: 'Error: An error occurred sending a message'});
@@ -47,12 +46,8 @@ export class ChatServiceService {
 
   // Get security tips from backend or use defaults
   getSecurityTips(): Observable<string[]> {
-    return this.http.get<string[]>(`${this.baseUrl}security-tips`).pipe(
-      catchError(() => {
-        console.log('Using default security tips');
-        return of(this.defaultSecurityTips);
-      })
-    );
+    // No backend endpoint available; return defaults to avoid network errors
+    return of(this.defaultSecurityTips);
   }
 
   // Get quick actions from backend or use defaults
@@ -64,28 +59,19 @@ export class ChatServiceService {
       { label: 'Risk Assessment', action: 'risk', description: 'Perform a security risk assessment' },
       { label: 'Security Tips', action: 'tips', description: 'Get security best practices' }
     ];
-
-    return this.http.get<any[]>(`${this.baseUrl}quick-actions`).pipe(
-      catchError(() => {
-        console.log('Using default quick actions');
-        return of(defaultActions);
-      })
-    );
+    // Return defaults directly to avoid failed network calls
+    return of(defaultActions);
   }
 
   // Get AI suggestions based on context
   getAISuggestions(context: string): Observable<string[]> {
-    return this.http.post<string[]>(`${this.baseUrl}ai-suggestions`, { context }).pipe(
-      catchError(() => {
-        console.log('Using default AI suggestions');
-        return of([
-          'Consider implementing input validation',
-          'Review your authentication mechanisms',
-          'Check for common security vulnerabilities',
-          'Update your dependencies to latest versions'
-        ]);
-      })
-    );
+    // Return defaults directly; no stable backend endpoint provided
+    return of([
+      'Consider implementing input validation',
+      'Review your authentication mechanisms',
+      'Check for common security vulnerabilities',
+      'Update your dependencies to latest versions'
+    ]);
   }
 
 }

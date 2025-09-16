@@ -138,7 +138,11 @@ export class KnowledgeGraphComponent implements OnInit {
       }
     });
 
-    this.graphData = { nodes, edges };
+    // Filter out edges referencing missing nodes to avoid D3 link errors
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const safeEdges = edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+
+    this.graphData = { nodes, edges: safeEdges };
   }
 
   getRiskLevel(score: number): string {

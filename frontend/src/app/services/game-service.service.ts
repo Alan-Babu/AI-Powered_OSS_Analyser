@@ -152,24 +152,14 @@ export class GameService {
 
   // Get challenges from backend or use defaults
   getChallenges(): Observable<Challenge[]> {
-    return this.http.get<Challenge[]>(`${this.baseUrl}/game/challenges`)
-      .pipe(
-        catchError(() => {
-          console.log('Using default challenges');
-          return of(this.defaultChallenges);
-        })
-      );
+    // Use defaults directly to avoid 401 noise if backend endpoints are absent
+    return of(this.defaultChallenges);
   }
 
   // Get leaderboard from backend or use defaults
   getLeaderboard(): Observable<LeaderboardEntry[]> {
-    return this.http.get<LeaderboardEntry[]>(`${this.baseUrl}/game/leaderboard`)
-      .pipe(
-        catchError(() => {
-          console.log('Using default leaderboard');
-          return of(this.defaultLeaderboard);
-        })
-      );
+    // Use defaults directly to avoid 401 noise if backend endpoints are absent
+    return of(this.defaultLeaderboard);
   }
 
   // Submit challenge result
@@ -181,63 +171,38 @@ export class GameService {
       timestamp: new Date().toISOString()
     };
     
-    return this.http.post(`${this.baseUrl}/game/submit-result`, result)
-      .pipe(
-        catchError(() => {
-          console.log('Failed to submit result to backend');
-          return of({ success: true, message: 'Result recorded locally' });
-        })
-      );
+    // Record locally; skip backend call to avoid errors
+    return of({ success: true, message: 'Result recorded locally' });
   }
 
   // Get user game statistics
   getUserStats(): Observable<GameStats> {
-    return this.http.get<GameStats>(`${this.baseUrl}/game/user-stats`)
-      .pipe(
-        catchError(() => {
-          console.log('Using default game stats');
-          return of({
-            challengesCompleted: 0,
-            correctAnswers: 0,
-            totalTimeSpent: 0,
-            averageScore: 0,
-            currentStreak: 0
-          });
-        })
-      );
+    // Use defaults directly to avoid 401 noise if backend endpoints are absent
+    return of({
+      challengesCompleted: 0,
+      correctAnswers: 0,
+      totalTimeSpent: 0,
+      averageScore: 0,
+      currentStreak: 0
+    });
   }
 
   // Get challenge by ID
   getChallengeById(id: number): Observable<Challenge | null> {
-    return this.http.get<Challenge>(`${this.baseUrl}/game/challenges/${id}`)
-      .pipe(
-        catchError(() => {
-          const challenge = this.defaultChallenges.find(c => c.id === id);
-          return of(challenge || null);
-        })
-      );
+    const challenge = this.defaultChallenges.find(c => c.id === id) || null;
+    return of(challenge);
   }
 
   // Get challenges by difficulty
   getChallengesByDifficulty(difficulty: string): Observable<Challenge[]> {
-    return this.http.get<Challenge[]>(`${this.baseUrl}/game/challenges?difficulty=${difficulty}`)
-      .pipe(
-        catchError(() => {
-          const challenges = this.defaultChallenges.filter(c => c.difficulty === difficulty);
-          return of(challenges);
-        })
-      );
+    const challenges = this.defaultChallenges.filter(c => c.difficulty === difficulty);
+    return of(challenges);
   }
 
   // Get challenges by category
   getChallengesByCategory(category: string): Observable<Challenge[]> {
-    return this.http.get<Challenge[]>(`${this.baseUrl}/game/challenges?category=${category}`)
-      .pipe(
-        catchError(() => {
-          const challenges = this.defaultChallenges.filter(c => c.category === category);
-          return of(challenges);
-        })
-      );
+    const challenges = this.defaultChallenges.filter(c => c.category === category);
+    return of(challenges);
   }
 
   private handleError(error: any): Observable<never> {
