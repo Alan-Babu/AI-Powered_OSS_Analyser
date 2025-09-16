@@ -199,8 +199,31 @@ export class EnhancedApiService {
   }
 
   getRiskPrediction(dependencies: Dependency[]): Observable<any> {
-    const body = { dependencies };
-    return this.http.post(`${environment.aiServices.riskModel}/predict`, body)
+    // Map frontend Dependency to AI service expected schema
+    const requestBody = {
+      dependencies: (dependencies || []).map(d => ({
+        package_name: d.name,
+        version: d.version,
+        ecosystem: d.ecosystem,
+        last_updated_days: 0,
+        download_count: null,
+        star_count: null,
+        fork_count: null,
+        issue_count: null,
+        commit_frequency: null,
+        maintainer_count: null,
+        license_type: d.license || 'Unknown',
+        has_security_policy: false,
+        has_code_of_conduct: false,
+        has_contributing_guide: false,
+        vulnerability_count: (d.vulnerabilities || []).length,
+        outdated_days: 0,
+        transitive_dependencies: 0,
+        dependency_depth: 0
+      }))
+    };
+
+    return this.http.post(`${this.baseUrl}/repo/ai/predict`, requestBody)
       .pipe(
         map(result => this.enhanceRiskPrediction(result)),
         catchError(this.handleError)
@@ -241,39 +264,20 @@ export class EnhancedApiService {
   }
 
   checkAIServicesHealth(): Observable<AIServiceHealth> {
-    const healthChecks = [
-      this.http.get(`${environment.aiServices.securityScanner}/health`),
-      this.http.get(`${environment.aiServices.nlpExplainer}/health`),
-      this.http.get(`${environment.aiServices.riskModel}/health`),
-      this.http.get(`${environment.aiServices.knowledgeGraph}/health`)
-    ];
-    
-    return new Observable(observer => {
-      Promise.all(healthChecks.map(check => check.toPromise()))
-        .then(results => {
-          const health: AIServiceHealth = {
-            securityScanner: results[0] ? 'healthy' : 'unhealthy',
-            nlpExplainer: results[1] ? 'healthy' : 'unhealthy',
-            riskModel: results[2] ? 'healthy' : 'unhealthy',
-            knowledgeGraph: results[3] ? 'healthy' : 'unhealthy'
-          };
-          
-          this.servicesHealthSubject.next(health);
-          observer.next(health);
-          observer.complete();
-        })
-        .catch(error => {
-          const health: AIServiceHealth = {
-            securityScanner: 'unhealthy',
-            nlpExplainer: 'unhealthy',
-            riskModel: 'unhealthy',
-            knowledgeGraph: 'unhealthy'
-          };
-          this.servicesHealthSubject.next(health);
-          observer.next(health);
-          observer.complete();
-        });
-    });
+    return this.http.get<any>(`${environment.backendUrl}/api/repo/health`).pipe(
+      map(resp => {
+        const ai = resp?.aiServices || {};
+        const health: AIServiceHealth = {
+          securityScanner: ai['security-scanner'] || 'unhealthy',
+          nlpExplainer: ai['nlp-explainer'] || 'unhealthy',
+          riskModel: ai['risk-model'] || 'unhealthy',
+          knowledgeGraph: ai['knowledge-graph'] || 'unhealthy'
+        };
+        this.servicesHealthSubject.next(health);
+        return health;
+      }),
+      catchError(this.handleError)
+    );
   }
 
   // Data enhancement methods

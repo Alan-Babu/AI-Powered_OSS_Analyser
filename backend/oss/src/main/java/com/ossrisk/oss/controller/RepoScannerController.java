@@ -174,6 +174,31 @@ public class RepoScannerController {
         }
     }
 
+    @PostMapping("/ai/predict")
+    public ResponseEntity<Map<String, Object>> predictRiskWithAI(@RequestBody Map<String, Object> request) {
+        try {
+            ResponseEntity<Map> aiResponse = restTemplate.postForEntity(
+                "http://localhost:8003/risk/batch-assess",
+                request,
+                Map.class
+            );
+
+            if (aiResponse.getStatusCode().is2xxSuccessful() && aiResponse.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> body = (Map<String, Object>) aiResponse.getBody();
+                return ResponseEntity.ok(body);
+            }
+
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "AI prediction service responded with status: " + aiResponse.getStatusCode());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Failed to get AI prediction: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
     @PatchMapping("/vulnerabilities/{id}/status")
     public ResponseEntity<Map<String, String>> updateVulnerabilityStatus(
             @PathVariable Long id, 
