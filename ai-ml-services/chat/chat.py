@@ -1,45 +1,10 @@
 from fastapi import FastAPI, HTTPException,APIRouter
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import BaseModel
 from typing import AsyncGenerator
-import os
-
-router = APIRouter()
-
-
-load_dotenv()
-client = OpenAI(
-    base_url="https://router.huggingface.co/v1",
-    api_key=os.environ["HF_TOKEN"],
-)
-
-class ChatRequest(BaseModel):
-    message: str
-
-class ChatResponse(BaseModel):
-    response: str 
-
-'''
-async def stream_response_generator(user_message: str)->AsyncGenerator[str,None]:
-    try:
-        stream = client.chat.completions.create(
-            model="openai/gpt-oss-20b:fireworks-ai",
-            messages=[
-                {"role": "user", "content": user_message}
-            ],
-            stream=True
-        )
-        for chunk in stream:
-            yield chunk.choices[0].delta["content"]
-    except Exception as e:
-        yield f"[error] {str(e)}"    '''
-   
-from fastapi import FastAPI, HTTPException, APIRouter
-from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import BaseModel
+from openai import OpenAI
 import os
 
 router = APIRouter()
@@ -49,6 +14,7 @@ client = OpenAI(
     base_url="https://router.huggingface.co/v1",
     api_key=os.environ["HF_TOKEN"],
 )
+print(f"HF_TOKEN loaded: {os.getenv('HF_TOKEN') is not None}")
 
 class ChatRequest(BaseModel):
     message: str
