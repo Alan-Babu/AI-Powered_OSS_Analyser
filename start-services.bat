@@ -36,8 +36,8 @@ timeout /t 10 /nobreak > nul
 
 echo.
 echo Starting Backend Service...
-REM Start Spring Boot Backend (Port 8080)
-start "Backend" cmd /k "cd backend/oss && mvn spring-boot:run"
+REM Start Spring Boot Backend (Port 8080) using Maven Wrapper
+start "Backend" cmd /k "cd backend/oss && mvnw spring-boot:run"
 
 echo.
 echo Waiting for backend to start...

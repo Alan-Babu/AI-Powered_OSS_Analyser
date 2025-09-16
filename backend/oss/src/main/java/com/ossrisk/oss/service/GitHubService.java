@@ -234,37 +234,55 @@ public class GitHubService {
         if (dependencies == null || dependencies.isEmpty()) {
             return 0.0;
         }
-        
+
         double totalRisk = 0.0;
-        int dependencyCount = 0;
-        
+        int scoredDependencies = 0;
+
         for (Dependency dep : dependencies) {
             double dependencyRisk = 0.0;
-            
-            // Add risk based on vulnerabilities
+
+            int vulnCount = 0;
+            double maxCvss = 0.0;
             if (dep.getVulnerabilities() != null) {
-                dependencyRisk += dep.getVulnerabilities().size() * 0.5;
+                vulnCount = dep.getVulnerabilities().size();
+                for (var v : dep.getVulnerabilities()) {
+                    if (v.getCvssScore() != null) {
+                        maxCvss = Math.max(maxCvss, v.getCvssScore());
+                    }
+                }
             }
-            
-            // Add risk based on outdated status
+
+            // Base on CVSS severity (normalize to 0-10)
+            dependencyRisk += maxCvss; // already 0-10
+
+            // Additional penalty per vulnerability beyond the first
+            if (vulnCount > 1) {
+                dependencyRisk += Math.min((vulnCount - 1) * 0.5, 3.0);
+            }
+
+            // Outdated penalty
             if (dep.isOutdated()) {
-                dependencyRisk += 0.3;
+                dependencyRisk += 1.0;
             }
-            
-            // Add risk based on vulnerable status
+
+            // Known vulnerable flag penalty
             if (dep.isVulnerable()) {
+                dependencyRisk += 1.0;
+            }
+
+            // License penalty if unknown or problematic
+            if (dep.getLicenseType() == null || dep.getLicenseType().isBlank()) {
                 dependencyRisk += 0.5;
             }
-            
-            // Add risk based on vulnerability count
-            if (dep.getVulnerabilityCount() != null) {
-                dependencyRisk += dep.getVulnerabilityCount() * 0.2;
-            }
-            
-            totalRisk += Math.min(dependencyRisk, 10.0); // Cap at 10.0
-            dependencyCount++;
+
+            // Cap per dependency between 0 and 10
+            dependencyRisk = Math.max(0.0, Math.min(10.0, dependencyRisk));
+
+            totalRisk += dependencyRisk;
+            scoredDependencies++;
         }
-        
-        return dependencyCount > 0 ? totalRisk / dependencyCount : 0.0;
+
+        // Average across dependencies
+        return scoredDependencies > 0 ? Math.round((totalRisk / scoredDependencies) * 10.0) / 10.0 : 0.0;
     }
 }

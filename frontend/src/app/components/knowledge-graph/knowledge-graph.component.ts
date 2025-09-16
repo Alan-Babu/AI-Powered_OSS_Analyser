@@ -2,6 +2,7 @@ import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { EnhancedApiService } from '../../services/enhanced-api.service';
+import * as d3 from 'd3';
 
 @Component({
   selector: 'app-knowledge-graph',
@@ -34,6 +35,8 @@ export class KnowledgeGraphComponent implements OnInit {
   isLoading = false;
   errorMessage = '';
 
+  private simulation: d3.Simulation<any, undefined> | null = null;
+
   constructor(private apiService: EnhancedApiService) {}
 
   ngOnInit() {
@@ -50,16 +53,20 @@ export class KnowledgeGraphComponent implements OnInit {
             next: (reports) => {
               // Build graph data from repositories and reports
               this.buildGraphFromData(repositories, reports);
+              // Render graph
+              setTimeout(() => this.initializeGraph());
             },
             error: (error) => {
               console.error('Error loading reports:', error);
               this.buildGraphFromData(repositories, []);
+              setTimeout(() => this.initializeGraph());
             }
           });
         },
         error: (error) => {
           console.error('Error loading repositories:', error);
           this.buildGraphFromData([], []);
+          setTimeout(() => this.initializeGraph());
         }
       });
       
@@ -141,9 +148,94 @@ export class KnowledgeGraphComponent implements OnInit {
   }
 
   initializeGraph() {
-    // Initialize the knowledge graph visualization
-    // This would typically use a library like D3.js or ngx-graph
-    console.log('Initializing graph with', this.graphData.nodes.length, 'nodes');
+    const container = this.graphContainer?.nativeElement as HTMLElement;
+    if (!container) return;
+
+    // Clear previous SVG
+    d3.select(container).selectAll('*').remove();
+
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 400;
+
+    const svg = d3.select(container)
+      .append('svg')
+      .attr('width', width)
+      .attr('height', height);
+
+    const color = (type: string) => {
+      switch (type) {
+        case 'repository': return '#3b82f6';
+        case 'dependency': return '#10b981';
+        case 'vulnerability': return '#ef4444';
+        default: return '#9ca3af';
+      }
+    };
+
+    const link = svg.append('g')
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .selectAll('line')
+      .data(this.graphData.edges)
+      .enter()
+      .append('line')
+      .attr('stroke-width', 1.5);
+
+    const node = svg.append('g')
+      .selectAll('circle')
+      .data(this.graphData.nodes)
+      .enter()
+      .append('circle')
+      .attr('r', 6)
+      .attr('fill', d => color(d.type))
+      .call(
+        d3.drag<SVGCircleElement, any>()
+          .on('start', (event, d) => {
+            if (!event.active && this.simulation) this.simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+          })
+          .on('drag', (event, d) => {
+            d.fx = event.x;
+            d.fy = event.y;
+          })
+          .on('end', (event, d) => {
+            if (!event.active && this.simulation) this.simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+          })
+      )
+      .on('click', (_, d: any) => this.onNodeClick(d));
+
+    const labels = svg.append('g')
+      .selectAll('text')
+      .data(this.graphData.nodes)
+      .enter()
+      .append('text')
+      .text(d => d.label)
+      .attr('font-size', '10px')
+      .attr('dx', 10)
+      .attr('dy', 3)
+      .attr('fill', '#374151');
+
+    this.simulation = d3.forceSimulation(this.graphData.nodes as any)
+      .force('link', d3.forceLink(this.graphData.edges as any).id((d: any) => d.id).distance(60))
+      .force('charge', d3.forceManyBody().strength(-120))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .on('tick', () => {
+        link
+          .attr('x1', (d: any) => (d.source.x))
+          .attr('y1', (d: any) => (d.source.y))
+          .attr('x2', (d: any) => (d.target.x))
+          .attr('y2', (d: any) => (d.target.y));
+
+        node
+          .attr('cx', (d: any) => d.x)
+          .attr('cy', (d: any) => d.y);
+
+        labels
+          .attr('x', (d: any) => d.x)
+          .attr('y', (d: any) => d.y);
+      });
   }
 
   onNodeClick(node: any) {

@@ -156,11 +156,12 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
     this.aiRiskPrediction = null;
   }
 
-  generateAIPrediction(): void {
-    if (!this.selectedReport) return;
+  generateAIPrediction(report?: RiskReport): void {
+    const target = report || this.selectedReport;
+    if (!target) return;
 
     this.isPredicting = true;
-    const sub = this.api.getRiskPrediction(this.selectedReport.dependencies || []).subscribe({
+    const sub = this.api.getRiskPrediction(target.dependencies || []).subscribe({
       next: (prediction) => {
         this.aiRiskPrediction = prediction;
         this.isPredicting = false;
@@ -197,6 +198,25 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
     const a = document.createElement('a');
     a.href = url;
     a.download = `risk-report-${report.id}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  generateCombinedReport() {
+    if (!this.riskReports || this.riskReports.length === 0) return;
+    const headers = ['Repository','Risk Score','Dependencies','Total Vulnerabilities'];
+    const rows = this.riskReports.map(r => [
+      r.repoUrl || '',
+      r.riskScore || 0,
+      (r.dependencies || []).length,
+      (r.dependencies || []).reduce((acc, d) => acc + (d.vulnerabilities?.length || 0), 0)
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'risk-reports.csv';
     a.click();
     window.URL.revokeObjectURL(url);
   }

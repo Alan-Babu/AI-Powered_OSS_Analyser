@@ -1,0 +1,23 @@
+<div class="p-6 space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold">Scan History</h1>
+    <button class="px-4 py-2 bg-blue-600 text-white rounded" (click)="loadReports()" [disabled]="isLoading">Refresh</button>
+  </div>
+
+  <div *ngIf="errorMessage" class="text-red-600">{{ errorMessage }}</div>
+  <div *ngIf="isLoading">Loading...</div>
+
+  <div *ngIf="!isLoading && reports.length === 0" class="text-gray-600">No reports available.</div>
+
+  <div *ngIf="!isLoading && reports.length > 0" class="grid grid-cols-1 gap-3">
+    <div *ngFor="let report of reports" class="border rounded p-4 flex items-center justify-between">
+      <div>
+        <div class="font-medium">{{ getRepoName(report.repoUrl) }}</div>
+        <div class="text-sm text-gray-600">Risk: {{ report.riskScore | number:'1.1-1' }} | Deps: {{ report.dependencies?.length || 0 }} | Vulns: {{ (report.dependencies||[]).reduce((a,d)=> a + (d.vulnerabilities?.length||0), 0) }}</div>
+      </div>
+      <a [routerLink]="['/risk-assessment']" class="text-blue-600 underline">Details</a>
+    </div>
+  </div>
+</div>
+
+

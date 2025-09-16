@@ -172,7 +172,7 @@ export class EnhancedApiService {
   }
 
   updateVulnerabilityStatus(vulnId: number, status: string): Observable<Vulnerability> {
-    return this.http.patch<Vulnerability>(`${this.baseUrl}/vulnerabilities/${vulnId}/status`, { status })
+    return this.http.patch<Vulnerability>(`${this.baseUrl}/repo/vulnerabilities/${vulnId}/status`, { status })
       .pipe(
         map(vuln => this.enhanceVulnerabilityWithAI(vuln)),
         catchError(this.handleError)
@@ -219,7 +219,7 @@ export class EnhancedApiService {
   // Enhanced chat functionality
   chatWithAI(message: string): Observable<ChatMessage> {
     const body = { message };
-    return this.http.post<{response: string}>(`${this.baseUrl}/chat`, body)
+    return this.http.post<{response: string}>(`${this.baseUrl}/repo/chat`, body)
       .pipe(
         map(response => ({
           message: message,
