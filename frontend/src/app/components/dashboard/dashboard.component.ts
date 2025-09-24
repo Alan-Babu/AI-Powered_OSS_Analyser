@@ -109,6 +109,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   calculateDashboardStats(): void {
     // Total vulnerabilities
+    console.log(this.recentReports);
     this.totalVulnerabilities = this.recentReports.reduce(
       (total, r) => total + (r.totalVulnerabilities || 0), 0
     );
