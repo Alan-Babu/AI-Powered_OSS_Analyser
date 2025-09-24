@@ -1,216 +1,133 @@
-<div class="dashboard-container">
+<div class="p-6 bg-gray-50 min-h-screen font-sans">
+
   <!-- Header -->
-  <div class="dashboard-header">
-    <h1>OSS Risk Analyzer Dashboard</h1>
-    <button (click)="refreshData()" class="refresh-btn" [disabled]="isLoading">
-      <i class="fas fa-sync-alt"></i> Refresh
+  <div class="flex flex-col sm:flex-row justify-between items-center mb-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-4 sm:mb-0">OSS Risk Analyzer Dashboard</h1>
+    <button
+      (click)="refreshData()"
+      [disabled]="isLoading"
+      class="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-5 py-2 rounded-lg shadow-lg transition transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <i class="fas fa-sync-alt animate-spin-slow" *ngIf="isLoading"></i>
+      <i class="fas fa-sync-alt" *ngIf="!isLoading"></i>
+      Refresh
     </button>
   </div>
 
   <!-- Error Message -->
-  <div *ngIf="errorMessage" class="error-message">
-    <span>{{ errorMessage }}</span>
-    <button (click)="clearError()" class="close-btn">×</button>
+  <div *ngIf="errorMessage" class="flex justify-between items-center bg-red-100 border-l-4 border-red-500 text-red-700 px-5 py-3 rounded-lg mb-6 shadow-md">
+    <span class="font-medium">{{ errorMessage }}</span>
+    <button (click)="clearError()" class="text-red-700 font-bold hover:text-red-900 text-xl">×</button>
   </div>
 
   <!-- Loading Spinner -->
-  <div *ngIf="isLoading" class="loading-container">
-    <div class="spinner"></div>
-    <p>Loading dashboard data...</p>
+  <div *ngIf="isLoading" class="flex flex-col items-center justify-center py-16">
+    <div class="w-14 h-14 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <p class="text-gray-600 text-lg font-medium">Loading dashboard data...</p>
   </div>
 
   <!-- Dashboard Content -->
-  <div *ngIf="!isLoading" class="dashboard-content">
-    
+  <div *ngIf="!isLoading" class="space-y-10">
+
     <!-- Statistics Cards -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+      <div class="bg-gradient-to-r from-blue-400 to-blue-600 shadow-lg rounded-xl p-6 flex items-center gap-4 transform hover:scale-105 transition">
+        <div class="p-4 bg-white rounded-full text-blue-600 text-3xl shadow-md">
           <i class="fas fa-database"></i>
         </div>
-        <div class="stat-content">
-          <h3>{{ totalRepositories }}</h3>
-          <p>Total Repositories</p>
+        <div>
+          <h3 class="text-2xl font-bold text-white">{{ totalRepositories }}</h3>
+          <p class="text-blue-100 font-semibold">Total Repositories</p>
         </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-icon">
+      <div class="bg-gradient-to-r from-green-400 to-green-600 shadow-lg rounded-xl p-6 flex items-center gap-4 transform hover:scale-105 transition">
+        <div class="p-4 bg-white rounded-full text-green-600 text-3xl shadow-md">
           <i class="fas fa-shield-alt"></i>
         </div>
-        <div class="stat-content">
-          <h3>{{ totalVulnerabilities }}</h3>
-          <p>Total Vulnerabilities</p>
+        <div>
+          <h3 class="text-2xl font-bold text-white">{{ totalVulnerabilities }}</h3>
+          <p class="text-green-100 font-semibold">Total Vulnerabilities</p>
         </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-icon">
+      <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-lg rounded-xl p-6 flex items-center gap-4 transform hover:scale-105 transition">
+        <div class="p-4 bg-white rounded-full text-yellow-600 text-3xl shadow-md">
           <i class="fas fa-chart-line"></i>
         </div>
-        <div class="stat-content">
-          <h3>{{ averageRiskScore | number:'1.1-1' }}</h3>
-          <p>Average Risk Score</p>
+        <div>
+          <h3 class="text-2xl font-bold text-white">{{ averageRiskScore | number:'1.1-1' }}</h3>
+          <p class="text-yellow-100 font-semibold">Average Risk Score</p>
         </div>
       </div>
 
-      <div class="stat-card critical">
-        <div class="stat-icon">
+      <div class="bg-gradient-to-r from-red-400 to-red-600 shadow-lg rounded-xl p-6 flex items-center gap-4 transform hover:scale-105 transition">
+        <div class="p-4 bg-white rounded-full text-red-600 text-3xl shadow-md">
           <i class="fas fa-exclamation-triangle"></i>
         </div>
-        <div class="stat-content">
-          <h3>{{ criticalVulnerabilities }}</h3>
-          <p>Critical Vulnerabilities</p>
+        <div>
+          <h3 class="text-2xl font-bold text-white">{{ criticalVulnerabilities }}</h3>
+          <p class="text-red-100 font-semibold">Critical Vulnerabilities</p>
         </div>
       </div>
     </div>
 
     <!-- Services Health -->
-    <div class="health-section">
-      <h2>AI Services Health</h2>
-      <div class="health-grid">
-        <div class="health-card" [ngClass]="getServiceHealthColor('securityScanner')">
-          <i class="fas fa-shield-alt"></i>
-          <h4>Security Scanner</h4>
-          <span class="status">{{ servicesHealth?.securityScanner || 'unknown' }}</span>
+    <div>
+      <h2 class="text-2xl font-semibold text-gray-900 mb-6">AI Services Health</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+        <div class="bg-white shadow-lg rounded-xl p-5 flex flex-col items-center gap-3 hover:shadow-xl transition" [ngClass]="getServiceHealthColor('securityScanner')">
+          <div class="p-3 rounded-full bg-blue-100 text-blue-600 text-2xl animate-pulse"><i class="fas fa-shield-alt"></i></div>
+          <h4 class="font-medium text-gray-800">Security Scanner</h4>
+          <span class="text-sm text-gray-500">{{ servicesHealth?.securityScanner || 'unknown' }}</span>
         </div>
 
-        <div class="health-card" [ngClass]="getServiceHealthColor('nlpExplainer')">
-          <i class="fas fa-brain"></i>
-          <h4>NLP Explainer</h4>
-          <span class="status">{{ servicesHealth?.nlpExplainer || 'unknown' }}</span>
+        <div class="bg-white shadow-lg rounded-xl p-5 flex flex-col items-center gap-3 hover:shadow-xl transition" [ngClass]="getServiceHealthColor('nlpExplainer')">
+          <div class="p-3 rounded-full bg-purple-100 text-purple-600 text-2xl animate-pulse"><i class="fas fa-brain"></i></div>
+          <h4 class="font-medium text-gray-800">NLP Explainer</h4>
+          <span class="text-sm text-gray-500">{{ servicesHealth?.nlpExplainer || 'unknown' }}</span>
         </div>
 
-        <div class="health-card" [ngClass]="getServiceHealthColor('riskModel')">
-          <i class="fas fa-chart-bar"></i>
-          <h4>Risk Model</h4>
-          <span class="status">{{ servicesHealth?.riskModel || 'unknown' }}</span>
+        <div class="bg-white shadow-lg rounded-xl p-5 flex flex-col items-center gap-3 hover:shadow-xl transition" [ngClass]="getServiceHealthColor('riskModel')">
+          <div class="p-3 rounded-full bg-yellow-100 text-yellow-600 text-2xl animate-pulse"><i class="fas fa-chart-bar"></i></div>
+          <h4 class="font-medium text-gray-800">Risk Model</h4>
+          <span class="text-sm text-gray-500">{{ servicesHealth?.riskModel || 'unknown' }}</span>
         </div>
 
-        <div class="health-card" [ngClass]="getServiceHealthColor('knowledgeGraph')">
-          <i class="fas fa-project-diagram"></i>
-          <h4>Knowledge Graph</h4>
-          <span class="status">{{ servicesHealth?.knowledgeGraph || 'unknown' }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recent Reports -->
-    <div class="reports-section">
-      <h2>Recent Scan Reports</h2>
-      <div *ngIf="isLoadingReports" class="loading-message">
-        Loading recent reports...
-      </div>
-      
-      <div *ngIf="!isLoadingReports && recentReports.length === 0" class="empty-state">
-        <i class="fas fa-file-alt"></i>
-        <p>No scan reports available</p>
-        <a routerLink="/repository-scan" class="btn-primary">Start First Scan</a>
-      </div>
-
-      <div *ngIf="!isLoadingReports && recentReports.length > 0" class="reports-grid">
-        <div *ngFor="let report of recentReports" class="report-card">
-          <div class="report-header">
-            <h4>{{ getRepositoryName(report.repoUrl) }}</h4>
-            <span class="risk-badge" [ngClass]="getRiskColor(report.riskScore || 0)">
-              {{ getRiskLevel(report.riskScore || 0) }}
-            </span>
-          </div>
-          
-          <div class="report-stats">
-            <div class="stat">
-              <span class="label">Risk Score:</span>
-              <span class="value">{{ report.riskScore | number:'1.1-1' }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">Vulnerabilities:</span>
-              <span class="value">{{ report.totalVulnerabilities || 0 }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">Dependencies:</span>
-                              <span class="value">{{ report.dependencies.length || 0 }}</span>
-            </div>
-          </div>
-          
-          <div class="report-footer">
-            <span class="scan-date">{{ getTimeAgo(report.scanDate || '') }}</span>
-            <a [routerLink]="['/risk-assessment', report.id]" class="view-details">View Details</a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recent Repositories -->
-    <div class="repositories-section">
-      <h2>Recent Repositories</h2>
-      <div *ngIf="isLoadingRepositories" class="loading-message">
-        Loading repositories...
-      </div>
-      
-      <div *ngIf="!isLoadingRepositories && repositories.length === 0" class="empty-state">
-        <i class="fas fa-folder"></i>
-        <p>No repositories scanned yet</p>
-        <a routerLink="/repository-scan" class="btn-primary">Scan First Repository</a>
-      </div>
-
-      <div *ngIf="!isLoadingRepositories && repositories.length > 0" class="repositories-grid">
-        <div *ngFor="let repo of repositories.slice(0, 6)" class="repo-card">
-          <div class="repo-header">
-            <h4>{{ repo.projectName || getRepositoryName(repo.repoUrl) }}</h4>
-            <span class="owner">{{ repo.owner }}</span>
-          </div>
-          
-          <div class="repo-stats">
-            <div class="stat">
-              <span class="label">Risk Score:</span>
-              <span class="value">{{ repo.riskScore | number:'1.1-1' }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">Vulnerabilities:</span>
-              <span class="value">{{ repo.vulnerabilityCount || 0 }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">Dependencies:</span>
-              <span class="value">{{ repo.dependencyCount || 0 }}</span>
-            </div>
-          </div>
-          
-          <div class="repo-footer">
-            <span class="last-scan">{{ getTimeAgo(repo.lastScanDate || '') }}</span>
-            <a [routerLink]="['/repository-scan']" [queryParams]="{url: repo.repoUrl}" class="rescan-btn">Re-scan</a>
-          </div>
+        <div class="bg-white shadow-lg rounded-xl p-5 flex flex-col items-center gap-3 hover:shadow-xl transition" [ngClass]="getServiceHealthColor('knowledgeGraph')">
+          <div class="p-3 rounded-full bg-green-100 text-green-600 text-2xl animate-pulse"><i class="fas fa-project-diagram"></i></div>
+          <h4 class="font-medium text-gray-800">Knowledge Graph</h4>
+          <span class="text-sm text-gray-500">{{ servicesHealth?.knowledgeGraph || 'unknown' }}</span>
         </div>
       </div>
     </div>
 
     <!-- Quick Actions -->
-    <div class="quick-actions">
-      <h2>Quick Actions</h2>
-      <div class="actions-grid">
-        <a routerLink="/repository-scan" class="action-card">
-          <i class="fas fa-search"></i>
-          <h4>Scan Repository</h4>
-          <p>Analyze a new repository for vulnerabilities</p>
+    <div>
+      <h2 class="text-2xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+        <a routerLink="/repository-scan" class="bg-gradient-to-r from-blue-400 to-indigo-500 shadow-lg rounded-xl p-6 flex flex-col items-center text-center hover:scale-105 transition transform">
+          <i class="fas fa-search text-3xl text-white mb-2"></i>
+          <h4 class="text-white font-bold mb-1">Scan Repository</h4>
+          <p class="text-white text-sm">Analyze a new repository for vulnerabilities</p>
         </a>
-        
-        <a routerLink="/vulnerability-scan" class="action-card">
-          <i class="fas fa-bug"></i>
-          <h4>Vulnerability Scan</h4>
-          <p>Deep dive into specific vulnerabilities</p>
+        <a routerLink="/vulnerability-scan" class="bg-gradient-to-r from-red-400 to-pink-500 shadow-lg rounded-xl p-6 flex flex-col items-center text-center hover:scale-105 transition transform">
+          <i class="fas fa-bug text-3xl text-white mb-2"></i>
+          <h4 class="text-white font-bold mb-1">Vulnerability Scan</h4>
+          <p class="text-white text-sm">Deep dive into specific vulnerabilities</p>
         </a>
-        
-        <a routerLink="/risk-assessment" class="action-card">
-          <i class="fas fa-chart-pie"></i>
-          <h4>Risk Assessment</h4>
-          <p>View detailed risk analysis reports</p>
+        <a routerLink="/risk-assessment" class="bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-lg rounded-xl p-6 flex flex-col items-center text-center hover:scale-105 transition transform">
+          <i class="fas fa-chart-pie text-3xl text-white mb-2"></i>
+          <h4 class="text-white font-bold mb-1">Risk Assessment</h4>
+          <p class="text-white text-sm">View detailed risk analysis reports</p>
         </a>
-        
-        <a routerLink="/knowledge-graph" class="action-card">
-          <i class="fas fa-project-diagram"></i>
-          <h4>Knowledge Graph</h4>
-          <p>Explore dependency relationships</p>
+        <a routerLink="/knowledge-graph" class="bg-gradient-to-r from-green-400 to-green-600 shadow-lg rounded-xl p-6 flex flex-col items-center text-center hover:scale-105 transition transform">
+          <i class="fas fa-project-diagram text-3xl text-white mb-2"></i>
+          <h4 class="text-white font-bold mb-1">Knowledge Graph</h4>
+          <p class="text-white text-sm">Explore dependency relationships</p>
         </a>
       </div>
     </div>
+
   </div>
 </div>

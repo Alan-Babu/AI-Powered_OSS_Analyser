@@ -3,7 +3,6 @@ from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import AsyncGenerator
-from pydantic import BaseModel
 from openai import OpenAI
 import os
 
