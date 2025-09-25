@@ -41,17 +41,33 @@ public class AsyncRepositoryProcessor {
             String owner = parts[0];
             String project = parts[1];
 
-            RepositoryMetadata metadata = new RepositoryMetadata(null, repoUrl, owner, project);
-            metadataRepo.save(metadata);
-
             List<Dependency> deps = dependencyAnalyzer.analyze(repoDir);
             System.out.println("Dependencies found: " + deps.size());
-            deps.forEach(d -> System.out.println(d.getEcosystem() + " - " + d.getName() + ":" + d.getVersion()));
-            
+            deps.forEach(d -> System.out.println(
+                    d.getEcosystem() + " - " + d.getName() + ":" + d.getVersion()
+            ));
+
             List<Dependency> checkedDeps = vulnerabilityChecker.check(deps);
+
+            int totalVulns = checkedDeps.stream()
+                    .mapToInt(d -> d.getVulnerabilities() != null ? d.getVulnerabilities().size() : 0)
+                    .sum();
+
+            RepositoryMetadata metadata = new RepositoryMetadata();
+            metadata.setRepoUrl(repoUrl);
+            metadata.setOwner(owner);
+            metadata.setProjectName(project);
+            metadata.setVulnerabilityCount(totalVulns);
+            metadataRepo.save(metadata);
+
+
             double score = riskScorer.calculate(checkedDeps);
             
-            RiskReport report = new RiskReport(null, repoUrl, score, checkedDeps);
+            RiskReport report = new RiskReport();
+            report.setRepoUrl(repoUrl);
+            report.setRiskScore(score);
+            report.setDependencies(checkedDeps);
+            report.setTotalVulnerabilities(totalVulns);
             RiskReport savedReport = riskReportRepo.save(report);
             
             return CompletableFuture.completedFuture(savedReport);

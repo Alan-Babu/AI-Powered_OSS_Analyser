@@ -60,22 +60,30 @@ public class GitHubService {
             String owner = parts[0];
             String project = parts[1];
 
-            // Save repository metadata
-            metadataRepo.save(new RepositoryMetadata(null, repoUrl, owner, project));
-
-            // Analyze dependencies with enhanced API data
-            List<Dependency> deps = dependencyAnalyzer.analyze(repoDir);
-            System.out.println("Dependencies found: " + deps.size());
-            deps.forEach(d -> System.out.println(d.getEcosystem() + " - " + d.getName() + ":" + d.getVersion()));
-
             // Check vulnerabilities
+            List<Dependency> deps = dependencyAnalyzer.analyze(repoDir);
             List<Dependency> checkedDeps = vulnerabilityChecker.check(deps);
+
+            int totalVulns = checkedDeps.stream()
+                    .mapToInt(d -> d.getVulnerabilities() != null ? d.getVulnerabilities().size() : 0)
+                    .sum();
+            RepositoryMetadata repoMeta = new RepositoryMetadata();
+            repoMeta.setRepoUrl(repoUrl);
+            repoMeta.setOwner(owner);
+            repoMeta.setProjectName(project);
+            repoMeta.setVulnerabilityCount(totalVulns);
+            metadataRepo.save(repoMeta);
+
             
             // Calculate risk score using enhanced risk scorer
             double score = calculateRiskScore(checkedDeps);
             
             // Create and save risk report
-            RiskReport report = new RiskReport(null, repoUrl, score, checkedDeps);
+            RiskReport report = new RiskReport();
+            report.setRepoUrl(repoUrl);
+            report.setRiskScore(score);
+            report.setDependencies(checkedDeps);
+            report.setTotalVulnerabilities(totalVulns);
             return riskReportRepo.save(report);
             
         } catch (Exception e) {
@@ -159,7 +167,7 @@ public class GitHubService {
         data.put("has_security_policy", dep.getHasSecurityPolicy() != null ? dep.getHasSecurityPolicy() : false);
         data.put("has_code_of_conduct", dep.getHasCodeOfConduct() != null ? dep.getHasCodeOfConduct() : false);
         data.put("has_contributing_guide", dep.getHasContributingGuide() != null ? dep.getHasContributingGuide() : false);
-        data.put("vulnerability_count", dep.getVulnerabilityCount() != null ? dep.getVulnerabilityCount() : 0);
+        data.put("vulnerability_count", dep.getVulnerabilityCount() != null ? dep.getVulnerabilities().size() : 0);
         data.put("outdated_days", dep.getOutdatedDays() != null ? dep.getOutdatedDays() : 0);
         data.put("transitive_dependencies", dep.getTransitiveDependencies() != null ? dep.getTransitiveDependencies() : 0);
         data.put("dependency_depth", dep.getDependencyDepth() != null ? dep.getDependencyDepth() : 0);

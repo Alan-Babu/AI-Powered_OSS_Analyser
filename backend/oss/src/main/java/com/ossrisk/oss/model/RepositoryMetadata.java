@@ -15,4 +15,5 @@ public class RepositoryMetadata {
     private String repoUrl;
     private String owner;
     private String projectName;
+    private Integer vulnerabilityCount;
 }

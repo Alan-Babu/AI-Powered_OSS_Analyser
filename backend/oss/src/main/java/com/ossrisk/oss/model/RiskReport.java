@@ -15,6 +15,7 @@ public class RiskReport {
 
     private String repoUrl;
     private double riskScore;
+    private Integer totalVulnerabilities;
 
     @OneToMany(cascade=CascadeType.ALL)
     private List<Dependency> dependencies;

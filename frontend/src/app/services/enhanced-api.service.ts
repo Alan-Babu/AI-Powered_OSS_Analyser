@@ -37,6 +37,7 @@ export interface Dependency {
   vulnerable: boolean;
   ecosystem: string;
   vulnerabilities: Vulnerability[];
+  vulnerabilityCount?: number;
   latestVersion?: string;
   license?: string;
   riskScore?: number;
@@ -281,27 +282,42 @@ export class EnhancedApiService {
   }
 
   // Data enhancement methods
-  private enhanceReportWithAIInsights(report: RiskReport): RiskReport {
-    if (!report) return report;
-    
-    // Calculate vulnerability counts
-    const allVulns = (report.dependencies || []).flatMap(d => d.vulnerabilities || []);
-    report.totalVulnerabilities = allVulns.length;
-    report.criticalVulnerabilities = allVulns.filter(v => this.getSeverityFromCvss(v.cvssScore) === 'critical').length;
-    report.highVulnerabilities = allVulns.filter(v => this.getSeverityFromCvss(v.cvssScore) === 'high').length;
-    report.mediumVulnerabilities = allVulns.filter(v => this.getSeverityFromCvss(v.cvssScore) === 'medium').length;
-    report.lowVulnerabilities = allVulns.filter(v => this.getSeverityFromCvss(v.cvssScore) === 'low').length;
-    
-    // Add AI insights if not present
-    if (!report.aiInsights) {
-      report.aiInsights = {
-        overallRiskLevel: this.getRiskLevel(report.riskScore),
-        recommendations: this.generateRecommendations(report)
-      };
-    }
-    
-    return report;
+private enhanceReportWithAIInsights(report: RiskReport): RiskReport {
+  if (!report) return report;
+
+  const allVulnsCount = (report.dependencies || [])
+    .reduce((sum, d) => sum + (d.vulnerabilityCount || 0), 0);
+
+  report.totalVulnerabilities = allVulnsCount;
+
+  // If you want to keep critical/high/medium/low counts, you can optionally do similar if severity info exists
+  report.criticalVulnerabilities = (report.dependencies || [])
+    .reduce((sum, d) => sum + ((d.vulnerabilities || [])
+      .filter(v => this.getSeverityFromCvss(v.cvssScore) === 'critical').length), 0);
+
+  report.highVulnerabilities = (report.dependencies || [])
+    .reduce((sum, d) => sum + ((d.vulnerabilities || [])
+      .filter(v => this.getSeverityFromCvss(v.cvssScore) === 'high').length), 0);
+
+  report.mediumVulnerabilities = (report.dependencies || [])
+    .reduce((sum, d) => sum + ((d.vulnerabilities || [])
+      .filter(v => this.getSeverityFromCvss(v.cvssScore) === 'medium').length), 0);
+
+  report.lowVulnerabilities = (report.dependencies || [])
+    .reduce((sum, d) => sum + ((d.vulnerabilities || [])
+      .filter(v => this.getSeverityFromCvss(v.cvssScore) === 'low').length), 0);
+
+  // Add AI insights if not present
+  if (!report.aiInsights) {
+    report.aiInsights = {
+      overallRiskLevel: this.getRiskLevel(report.riskScore),
+      recommendations: this.generateRecommendations(report)
+    };
   }
+
+  return report;
+}
+
 
   private enhanceRepositoryMetadata(repo: RepositoryMetadata): RepositoryMetadata {
     if (!repo) return repo;

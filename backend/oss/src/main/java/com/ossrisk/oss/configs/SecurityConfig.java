@@ -57,7 +57,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/ai/**").permitAll()
                 .requestMatchers("/api/game/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers(
+                        "/swagger-ui.html",   // older entrypoint
+                        "/swagger-ui/**",     // static resources
+                        "/v3/api-docs/**",    // JSON endpoints
+                        "/v3/api-docs.yaml",  // YAML format (optional)
+                        "/v3/api-docs",       // root doc
+                        "/webjars/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll() // Allow H2 console access
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
