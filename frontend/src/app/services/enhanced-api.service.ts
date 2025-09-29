@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
-import { Observable, map, catchError, throwError, BehaviorSubject } from 'rxjs';
+import { Observable, map, catchError, throwError, BehaviorSubject,of } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface RepositoryMetadata {
@@ -24,7 +24,7 @@ export interface Vulnerability {
   reference: string;
   fixVersion: string;
   remediation: string;
-  severity?: 'low' | 'medium' | 'high' | 'critical';
+  severity?: string;
   status?: 'open' | 'fixed' | 'investigating';
   aiInsights?: any;
 }
@@ -158,13 +158,61 @@ export class EnhancedApiService {
   }
 
   // Enhanced vulnerability management
-  getAllVulnerabilities(): Observable<Vulnerability[]> {
+    getAllVulnerabilities(): Observable<Vulnerability[]> {
     return this.getReports().pipe(
-      map(reports => reports.flatMap(r => r.dependencies || []).flatMap(d => d.vulnerabilities || [])),
-      map(vulns => vulns.map(vuln => this.enhanceVulnerabilityWithAI(vuln))),
-      catchError(this.handleError)
+      map((reports) => {
+        if (!reports || reports.length === 0) return [];
+
+        const vulns: Vulnerability[] = [];
+
+        reports.forEach((report) => {
+          (report.dependencies || []).forEach((dep) => {
+            const depVulns = dep.vulnerabilities && dep.vulnerabilities.length
+              ? dep.vulnerabilities
+              : dep.vulnerable
+              ? [
+                  {
+                    id: dep.id??0,
+                    cve: 'N/A',
+                    title: 'Vulnerability Detected',
+                    description: 'Vulnerable dependency detected but no details available',
+                    cvssScore: 0,
+                    severity: 'low',
+                    status: 'open',
+                    reference: '',
+                    fixVersion: '',
+                    remediation: ''
+                  } as Vulnerability
+                ]
+              : [];
+
+            depVulns.forEach((vuln) => {
+              // ensure required fields
+              vulns.push({
+                id: vuln.id ?? dep.id??0,
+                cve: vuln.cve || 'N/A',
+                title: vuln.title || vuln.cve || 'Unknown',
+                description: vuln.description || 'No description',
+                cvssScore: vuln.cvssScore ?? 0,
+                severity: vuln.severity || this.getSeverityFromCvss(vuln.cvssScore ?? 0),
+                status: vuln.status || 'open',
+                reference: vuln.reference || '',
+                fixVersion: vuln.fixVersion || '',
+                remediation: vuln.remediation || ''
+              });
+            });
+          });
+        });
+
+        return vulns;
+      }),
+      catchError((err) => {
+        console.error('Error processing vulnerabilities', err);
+        return of([]);
+      })
     );
   }
+
 
   getVulnerabilitiesBySeverity(severity: string): Observable<Vulnerability[]> {
     return this.getAllVulnerabilities().pipe(
