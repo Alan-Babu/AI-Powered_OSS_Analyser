@@ -15,14 +15,7 @@ export class KnowledgeGraphComponent implements OnInit {
   
   @ViewChild('graphContainer') private graphContainer!: ElementRef;
 
-  graphData: {
-    nodes: any[];
-    edges: any[];
-  } = {
-    nodes: [],
-    edges: []
-  };
-
+  graphData: { nodes: any[]; edges: any[] } = { nodes: [], edges: [] };
   selectedNode: any = null;
   selectedLayout = 'force';
   graphFilters = {
@@ -36,6 +29,9 @@ export class KnowledgeGraphComponent implements OnInit {
   errorMessage = '';
 
   private simulation: d3.Simulation<any, undefined> | null = null;
+  private svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
+  private g!: d3.Selection<SVGGElement, unknown, null, undefined>;
+  private zoom: any;
 
   constructor(private apiService: EnhancedApiService) {}
 
@@ -46,14 +42,11 @@ export class KnowledgeGraphComponent implements OnInit {
   async loadGraphData() {
     this.isLoading = true;
     try {
-      // Load repositories and reports using observables
       this.apiService.getRepositories().subscribe({
         next: (repositories) => {
           this.apiService.getReports().subscribe({
             next: (reports) => {
-              // Build graph data from repositories and reports
               this.buildGraphFromData(repositories, reports);
-              // Render graph
               setTimeout(() => this.initializeGraph());
             },
             error: (error) => {
@@ -69,7 +62,6 @@ export class KnowledgeGraphComponent implements OnInit {
           setTimeout(() => this.initializeGraph());
         }
       });
-      
     } catch (error) {
       this.errorMessage = 'Failed to load graph data. Using sample data instead.';
       console.error('Error loading graph data:', error);
@@ -82,7 +74,7 @@ export class KnowledgeGraphComponent implements OnInit {
     const nodes: any[] = [];
     const edges: any[] = [];
     
-    // Add repository nodes
+    // Repo nodes
     repositories.forEach((repo, index) => {
       nodes.push({
         id: `repo_${repo.id}`,
@@ -93,7 +85,7 @@ export class KnowledgeGraphComponent implements OnInit {
       });
     });
 
-    // Add dependency and vulnerability nodes from reports
+    // Dependencies + vulnerabilities
     reports.forEach((report, reportIndex) => {
       if (report.dependencies) {
         report.dependencies.forEach((dep: any, depIndex: number) => {
@@ -105,16 +97,9 @@ export class KnowledgeGraphComponent implements OnInit {
             risk: this.getRiskLevel(dep.riskScore || 0),
             data: dep
           });
-          
-          // Connect to repository
-          edges.push({
-            source: `repo_${report.id || reportIndex}`,
-            target: depId,
-            type: 'depends_on'
-          });
+          edges.push({ source: `repo_${report.id || reportIndex}`, target: depId, type: 'depends_on' });
         });
       }
-
       if (report.vulnerabilities) {
         report.vulnerabilities.forEach((vuln: any, vulnIndex: number) => {
           const vulnId = `vuln_${reportIndex}_${vulnIndex}`;
@@ -125,20 +110,13 @@ export class KnowledgeGraphComponent implements OnInit {
             risk: this.getRiskLevel(vuln.cvssScore || 0),
             data: vuln
           });
-          
-          // Connect to dependency if available
           if (vuln.dependencyId) {
-            edges.push({
-              source: `dep_${reportIndex}_${vuln.dependencyId}`,
-              target: vulnId,
-              type: 'has_vulnerability'
-            });
+            edges.push({ source: `dep_${reportIndex}_${vuln.dependencyId}`, target: vulnId, type: 'has_vulnerability' });
           }
         });
       }
     });
 
-    // Filter out edges referencing missing nodes to avoid D3 link errors
     const nodeIds = new Set(nodes.map(n => n.id));
     const safeEdges = edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
 
@@ -155,16 +133,20 @@ export class KnowledgeGraphComponent implements OnInit {
     const container = this.graphContainer?.nativeElement as HTMLElement;
     if (!container) return;
 
-    // Clear previous SVG
     d3.select(container).selectAll('*').remove();
 
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
 
-    const svg = d3.select(container)
-      .append('svg')
-      .attr('width', width)
-      .attr('height', height);
+    this.svg = d3.select(container).append('svg').attr('width', '100%').attr('height', '100%');
+    this.g = this.svg.append('g');
+
+    this.zoom = d3.zoom().on('zoom', (event) => {
+      this.g.attr('transform', event.transform);
+      // Hide labels when zoomed out
+      labels.style('display', event.transform.k > 0.7 ? 'block' : 'none');
+    });
+    this.svg.call(this.zoom);
 
     const color = (type: string) => {
       switch (type) {
@@ -175,77 +157,128 @@ export class KnowledgeGraphComponent implements OnInit {
       }
     };
 
-    const link = svg.append('g')
+    const link = this.g.append('g')
       .attr('stroke', '#999')
       .attr('stroke-opacity', 0.6)
       .selectAll('line')
       .data(this.graphData.edges)
-      .enter()
-      .append('line')
+      .enter().append('line')
       .attr('stroke-width', 1.5);
 
-    const node = svg.append('g')
+    const node = this.g.append('g')
       .selectAll('circle')
       .data(this.graphData.nodes)
-      .enter()
-      .append('circle')
+      .enter().append('circle')
       .attr('r', 6)
       .attr('fill', d => color(d.type))
       .call(
         d3.drag<SVGCircleElement, any>()
           .on('start', (event, d) => {
             if (!event.active && this.simulation) this.simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
+            d.fx = d.x; d.fy = d.y;
           })
-          .on('drag', (event, d) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
+          .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
           .on('end', (event, d) => {
             if (!event.active && this.simulation) this.simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
+            d.fx = null; d.fy = null;
           })
       )
       .on('click', (_, d: any) => this.onNodeClick(d));
 
-    const labels = svg.append('g')
+    // ✅ labels with tooltip
+    const labels = this.g.append('g')
       .selectAll('text')
       .data(this.graphData.nodes)
-      .enter()
-      .append('text')
-      .text(d => d.label)
+      .enter().append('text')
+      .text(d => d.label.length > 15 ? d.label.slice(0, 15) + "…" : d.label) // truncate
       .attr('font-size', '10px')
-      .attr('dx', 10)
-      .attr('dy', 3)
       .attr('fill', '#374151');
 
-    this.simulation = d3.forceSimulation(this.graphData.nodes as any)
-      .force('link', d3.forceLink(this.graphData.edges as any).id((d: any) => d.id).distance(60))
-      .force('charge', d3.forceManyBody().strength(-120))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .on('tick', () => {
-        link
-          .attr('x1', (d: any) => (d.source.x))
-          .attr('y1', (d: any) => (d.source.y))
-          .attr('x2', (d: any) => (d.target.x))
-          .attr('y2', (d: any) => (d.target.y));
+    node.append('title').text((d: any) => d.label); // tooltip with full text
 
-        node
-          .attr('cx', (d: any) => d.x)
-          .attr('cy', (d: any) => d.y);
+    // 🔑 Switch layouts
+    if (this.selectedLayout === 'force') {
+      // Force-directed with collision
+      this.simulation = d3.forceSimulation(this.graphData.nodes as any)
+        .force('link', d3.forceLink(this.graphData.edges as any).id((d: any) => d.id).distance(80))
+        .force('charge', d3.forceManyBody().strength(-200))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collide', d3.forceCollide(30)) // 👈 prevent overlap
+        .alphaDecay(0.05)
+        .on('tick', () => {
+          link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
+              .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
+          node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
+          labels.attr('x', (d: any) => d.x + 10).attr('y', (d: any) => d.y + 3);
+        })
+        .on('end', () => this.zoomToFit());
 
-        labels
-          .attr('x', (d: any) => d.x)
-          .attr('y', (d: any) => d.y);
+    } else if (this.selectedLayout === 'hierarchical') {
+      // Hierarchical: repos → deps → vulns
+      const levels: Record<string, number> = { repository: 0, dependency: 1, vulnerability: 2 };
+      const layerHeight = height / 3;
+
+      this.graphData.nodes.forEach((n, i) => {
+        n.x = (i % 10) * 100 + 50;
+        n.y = levels[n.type] * layerHeight + 50;
       });
+
+      link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
+          .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
+      node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
+      labels
+        .attr('x', (d: any, i) => d.x + (i % 2 === 0 ? 12 : -12)) // stagger
+        .attr('y', (d: any, i) => d.y + (i % 3 === 0 ? -12 : 12));
+
+      this.zoomToFit();
+
+    } else if (this.selectedLayout === 'circular') {
+      // Circular layout
+      const radius = Math.min(width, height) / 2 - 50;
+      const angleStep = (2 * Math.PI) / this.graphData.nodes.length;
+
+      this.graphData.nodes.forEach((n, i) => {
+        n.x = width / 2 + radius * Math.cos(i * angleStep);
+        n.y = height / 2 + radius * Math.sin(i * angleStep);
+      });
+
+      link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
+          .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
+      node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
+      labels
+        .attr('x', (d: any, i) => d.x + (i % 2 === 0 ? 12 : -12))
+        .attr('y', (d: any, i) => d.y + (i % 3 === 0 ? -12 : 12));
+
+      this.zoomToFit();
+    }
+  }
+
+  private zoomToFit() {
+    const bounds = this.g.node()?.getBBox();
+    if (!bounds) return;
+
+    const fullWidth = this.graphContainer.nativeElement.clientWidth;
+    const fullHeight = this.graphContainer.nativeElement.clientHeight;
+    const width = bounds.width;
+    const height = bounds.height;
+    const midX = bounds.x + width / 2;
+    const midY = bounds.y + height / 2;
+
+    const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight);
+    const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
+
+    this.svg.transition().duration(750).call(
+      this.zoom.transform,
+      d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+    );
   }
 
   onNodeClick(node: any) {
     this.selectedNode = node;
   }
 
+  
+  
   getNodeColor(node: any): string {
     switch (node.type) {
       case 'repository': return 'bg-blue-500';
@@ -262,15 +295,6 @@ export class KnowledgeGraphComponent implements OnInit {
       case 'low': return 'text-green-600 bg-green-100';
       default: return 'text-gray-600 bg-gray-100';
     }
-  }
-
-  applyFilters() {
-    // Apply graph filters
-    this.initializeGraph();
-  }
-
-  refreshGraph() {
-    this.loadGraphData();
   }
 
   exportGraph() {
@@ -293,6 +317,41 @@ export class KnowledgeGraphComponent implements OnInit {
   getNodeLabel(nodeId: string): string {
     const node = this.graphData.nodes.find(n => n.id === nodeId);
     return node ? node.label : 'Unknown';
+  }
+
+  applyFilters() {
+  // Filter nodes based on type checkboxes
+    const filteredNodes = this.graphData.nodes.filter(node => {
+      if (node.type === 'repository' && !this.graphFilters.showRepositories) return false;
+      if (node.type === 'dependency' && !this.graphFilters.showDependencies) return false;
+      if (node.type === 'vulnerability' && !this.graphFilters.showVulnerabilities) return false;
+      
+      // Optional: filter by risk level
+      if (this.graphFilters.riskLevel !== 'all' && node.risk !== this.graphFilters.riskLevel) return false;
+
+      return true;
+    });
+
+    // Filter edges to only include connections between filtered nodes
+    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    const filteredEdges = this.graphData.edges.filter(
+      e => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target)
+    );
+
+    // Temporarily replace graphData with filtered data for rendering
+    const originalGraphData = this.graphData;
+    this.graphData = { nodes: filteredNodes, edges: filteredEdges };
+
+    // Re-initialize the graph
+    this.initializeGraph();
+
+    // Restore original graphData if needed for future filters
+    this.graphData = originalGraphData;
+  }
+
+
+  refreshGraph() {
+    this.loadGraphData();
   }
 
   async analyzeNode(node: any) {
