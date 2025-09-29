@@ -13,7 +13,6 @@ client = OpenAI(
     base_url="https://router.huggingface.co/v1",
     api_key=os.environ["HF_TOKEN"],
 )
-print(f"HF_TOKEN loaded: {os.getenv('HF_TOKEN') is not None}")
 
 class ChatRequest(BaseModel):
     message: str

@@ -96,6 +96,7 @@ export interface ChatMessage {
 export class EnhancedApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.apiBaseUrl;
+  private readonly chatbotUrl = environment.chatboturl;
   
   // Observable for real-time updates
   private scanProgressSubject = new BehaviorSubject<ScanProgress | null>(null);
@@ -243,7 +244,7 @@ export class EnhancedApiService {
   // Enhanced chat functionality
   chatWithAI(message: string): Observable<ChatMessage> {
     const body = { message };
-    return this.http.post<{response: string}>(`${this.baseUrl}/repo/chat`, body)
+    return this.http.post<{response: string}>(`${this.chatbotUrl}/chat`, body)
       .pipe(
         map(response => ({
           message: message,

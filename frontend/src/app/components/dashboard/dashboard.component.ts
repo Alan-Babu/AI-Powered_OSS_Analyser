@@ -72,7 +72,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       next: ({ repos, reports, health }) => {
         this.repositories = repos || [];
         this.recentReports = (reports || []).slice(0, 5);
-        console.log("this.recentReports: ",this.recentReports)
         this.servicesHealth = health;
 
         this.totalRepositories = this.repositories.length;
@@ -110,11 +109,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   calculateDashboardStats(): void {
     // Total vulnerabilities
-    console.log("this.recentReports inside calculateDashboardStats: ",this.recentReports)
+
     this.totalVulnerabilities = this.recentReports.reduce(
       (total, r) => total + (r.totalVulnerabilities || 0), 0
     );
-    console.log("this.totalVulnerabilities: ",this.totalVulnerabilities)
 
     // Average risk score
     const validReports = this.recentReports.filter(r => r.riskScore !== undefined);

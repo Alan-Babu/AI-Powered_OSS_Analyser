@@ -36,7 +36,7 @@ export class ChatServiceService {
       return of({response: 'Error: Tried to send a null or undefined message'});
     }
     // Route chat via backend to avoid CORS and invalid external URLs
-    return this.http.post<{response: string}>(`${environment.backendUrl}/api/repo/chat`, { message: message }).pipe(
+    return this.http.post<{response: string}>(`${environment.chatboturl}/chat`, { message: message }).pipe(
       catchError(err => {
         console.error('An error occurred sending a message: ', err);
         return of({response: 'Error: An error occurred sending a message'});

@@ -3,7 +3,7 @@ echo Starting AI-Powered OSS Analyzer Services...
 echo.
 
 REM Set environment variables
-set HF_TOKEN=your_huggingface_token_here
+REM set HF_TOKEN=your_huggingface_token_here
 set GITHUB_TOKEN=your_github_token_here
 set OSSINDEX_USERNAME=your_ossindex_username
 set OSSINDEX_TOKEN=your_ossindex_token
@@ -28,7 +28,7 @@ start "Knowledge Graph" cmd /k "cd ai-ml-services/knowledge_graph && python main
 
 REM Start Chat Service (Port 8000)
 echo Starting Chat Service on port 8000...
-start "Chat Service" cmd /k "cd ai-ml-services/chat && python main.py"
+start "Chat Service" cmd /k "cd ai-ml-services/chat && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
 echo.
 echo Waiting for AI services to start...
