@@ -1,5 +1,6 @@
 package com.ossrisk.oss.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
@@ -17,7 +18,8 @@ public class RiskReport {
     private double riskScore;
     private Integer totalVulnerabilities;
 
-    @OneToMany(cascade=CascadeType.ALL)
+    @OneToMany(mappedBy = "report", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<Dependency> dependencies;
 
 

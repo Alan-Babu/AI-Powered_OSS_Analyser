@@ -1,5 +1,7 @@
 package com.ossrisk.oss.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -45,7 +47,13 @@ public class Dependency {
     private String riskLevel;
     private List<String> recommendations;
 
+    @ManyToOne
+    @JoinColumn(name = "report_id")
+    @JsonBackReference
+    private RiskReport report;
+
     @OneToMany(mappedBy = "dependency", cascade=CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<Vulnerability> vulnerabilities = new ArrayList<>();
 
     public Dependency(String name, String version, boolean outdated, boolean vulnerable, String ecosystem) {

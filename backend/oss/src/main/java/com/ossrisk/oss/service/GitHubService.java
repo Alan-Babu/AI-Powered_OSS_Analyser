@@ -3,6 +3,7 @@ package com.ossrisk.oss.service;
 import com.ossrisk.oss.model.Dependency;
 import com.ossrisk.oss.model.RepositoryMetadata;
 import com.ossrisk.oss.model.RiskReport;
+import com.ossrisk.oss.model.Vulnerability;
 import com.ossrisk.oss.repository.RepositoryMetadataRepository;
 import com.ossrisk.oss.repository.RiskReportRepository;
 import com.ossrisk.oss.utility.GitCloner;
@@ -82,8 +83,16 @@ public class GitHubService {
             RiskReport report = new RiskReport();
             report.setRepoUrl(repoUrl);
             report.setRiskScore(score);
-            report.setDependencies(checkedDeps);
             report.setTotalVulnerabilities(totalVulns);
+
+            for (Dependency dep : checkedDeps) {
+                dep.setReport(report);
+                for (Vulnerability vuln : dep.getVulnerabilities()) {
+                    vuln.setDependency(dep);
+                }
+            }
+            report.setDependencies(checkedDeps);
+
             return riskReportRepo.save(report);
             
         } catch (Exception e) {
