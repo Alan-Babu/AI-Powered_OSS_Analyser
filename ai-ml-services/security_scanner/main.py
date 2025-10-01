@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 import logging
 import re
 from typing import List, Dict, Any
+from fastapi.middleware.cors import CORSMiddleware
 import ast
 import astroid
 from pylint import epylint as lint
@@ -15,6 +16,19 @@ app = FastAPI(
     title="Security Scanner Service",
     description="AI-powered code security vulnerability detection and analysis",
     version="1.0.0"
+)
+
+ORIGINS = [
+    "http://localhost:4200",  # Angular dev server
+    "http://localhost:8080",  # springboot dev server
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class CodeFile(BaseModel):

@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 import logging
 import networkx as nx
 import json
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional, Set
 from datetime import datetime
 import os
@@ -15,6 +16,19 @@ app = FastAPI(
     title="Knowledge Graph Service",
     description="AI-powered dependency relationship analysis and knowledge graph generation",
     version="1.0.0"
+)
+
+ORIGINS = [
+    "http://localhost:4200",  # Angular dev server
+    "http://localhost:8080",  # springboot dev server
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class DependencyNode(BaseModel):

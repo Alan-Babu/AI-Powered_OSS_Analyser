@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 import logging
 from typing import List, Dict, Any, Optional
 from enhanced_risk_predictor import predict_dependency_risk_enhanced, DependencyFeatures
+from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 
@@ -17,6 +18,19 @@ app = FastAPI(
     title="Enhanced Risk Model Service",
     description="AI-powered dependency risk assessment using pre-trained models",
     version="3.0.0"
+)
+
+ORIGINS = [
+    "http://localhost:4200",  # Angular dev server
+    "http://localhost:8080",  # springboot dev server
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class DependencyData(BaseModel):

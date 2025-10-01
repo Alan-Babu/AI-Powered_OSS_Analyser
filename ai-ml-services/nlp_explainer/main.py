@@ -1,8 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import logging
-from extractor import extract_fix_and_remediation
+from enhanced_extractor import extract_fix_and_remediation
 from typing import Any, Dict
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,6 +15,19 @@ app = FastAPI(
     title="OSS Security NLP Explainer",
     description="AI-powered extraction of fix and remediation information from vulnerability descriptions",
     version="1.0.0"
+)
+
+ORIGINS = [
+    "http://localhost:4200",  # Angular dev server
+    "http://localhost:8080",  # springboot dev server
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class VulnerabilityText(BaseModel):
