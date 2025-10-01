@@ -29,6 +29,8 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
   isLoadingHistory = false;
   isLoadingHealth = false;
   isLoadingRepositories = false;
+  currentPage = 1;
+  itemsPerPage = 5
   
   private subscriptions: Subscription[] = [];
 
@@ -60,6 +62,17 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
     this.checkServicesHealth();
     this.loadRepositories();
   }
+
+get paginatedScanHistory(): RepositoryMetadata[] {
+  const start = (this.currentPage - 1) * this.itemsPerPage;
+  const end = start + this.itemsPerPage;
+  return this.scanHistory.slice(start, end);
+}
+
+get totalPages(): number {
+  return Math.ceil(this.scanHistory.length / this.itemsPerPage);
+}
+
 
   loadScanHistory(): void {
     this.isLoadingHistory = true;

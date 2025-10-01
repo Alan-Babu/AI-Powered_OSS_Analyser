@@ -258,7 +258,7 @@
         </div>
         <div class="p-6">
           <div class="space-y-4">
-            <div *ngFor="let scan of scanHistory" class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div *ngFor="let scan of paginatedScanHistory" class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
                   <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,7 +267,7 @@
                 </div>
                 <div>
                   <p class="font-medium text-gray-900">{{ scan.projectName || 'Unknown' }}</p>
-                  <p class="text-sm text-gray-500">{{ scan.repoUrl || 'No URL' }}</p>
+                  <p class="text-sm text-gray-500 break-all">{{ scan.repoUrl || 'No URL' }}</p>
                   <p class="text-xs text-gray-400">{{ scan.lastScanDate || 'Unknown' }}</p>
                 </div>
               </div>
@@ -284,7 +284,26 @@
                     {{ scan.status || 'unknown' }}
                   </span>
                 </div>
-              </div>
+              </div>   
+            </div>
+            <div class="flex justify-center items-center space-x-2 mt-4" *ngIf="totalPages > 1">
+              <button 
+                class="px-3 py-1 rounded-lg bg-gray-200 disabled:opacity-50"
+                [disabled]="currentPage === 1"
+                (click)="currentPage = currentPage - 1">
+                Prev
+              </button>
+
+              <span class="text-sm text-gray-600">
+                Page {{ currentPage }} of {{ totalPages }}
+              </span>
+
+              <button 
+                class="px-3 py-1 rounded-lg bg-gray-200 disabled:opacity-50"
+                [disabled]="currentPage === totalPages"
+                (click)="currentPage = currentPage + 1">
+                Next
+              </button>
             </div>
           </div>
         </div>
