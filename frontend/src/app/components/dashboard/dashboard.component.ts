@@ -2,8 +2,8 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { EnhancedApiService, RepositoryMetadata, RiskReport, AIServiceHealth } from '../../services/enhanced-api.service';
-import { Subscription, forkJoin } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { Subscription, forkJoin,of } from 'rxjs';
+import { finalize,timeout,catchError } from 'rxjs/operators';
 
 @Component({
   selector: 'app-dashboard',
@@ -48,43 +48,45 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 
-  loadDashboardData(): void {
-    this.isLoading = true;
-    this.isLoadingRepositories = true;
-    this.isLoadingReports = true;
-    this.isLoadingHealth = true;
-    this.errorMessage = null;
+loadDashboardData(): void {
+  this.isLoading = true;
+  this.errorMessage = null;
 
-    const sub = forkJoin({
-      repos: this.apiService.getRepositories(),
-      reports: this.apiService.getReports(),
-      health: this.apiService.checkAIServicesHealth()
-    })
-    .pipe(finalize(() => {
-      this.isLoading = false
-      this.isLoadingReports = false;
-      this.isLoadingRepositories = false;
-      this.isLoadingHealth = false;
-    
-    }))
-    
-    .subscribe({
-      next: ({ repos, reports, health }) => {
-        this.repositories = repos || [];
-        this.recentReports = (reports || []).slice(0, 5);
-        this.servicesHealth = health;
+  const sub = forkJoin({
+    repos: this.apiService.getRepositories(),
+    reports: this.apiService.getReports(),
+    health: this.apiService.checkAIServicesHealth().pipe(
+      timeout(3000),   // set max 3s timeout
+      catchError(() => of({ 
+        securityScanner: 'unknown',
+        nlpExplainer: 'unknown',
+        riskModel: 'timeout',
+        knowledgeGraph: 'unknown' })) // fallback
+    )
+  })
+  .pipe(finalize(() => {
+    this.isLoading = false;
+    this.isLoadingReports = false;
+    this.isLoadingRepositories = false;
+    this.isLoadingHealth = false;
+  }))
+  .subscribe({
+    next: ({ repos, reports, health }) => {
+      this.repositories = repos || [];
+      this.recentReports = (reports || []).slice(0, 5);
+      this.servicesHealth = health || {};
+      this.totalRepositories = this.repositories.length;
+      this.calculateDashboardStats();
+    },
+    error: (error) => {
+      console.error('Error loading dashboard data:', error);
+      this.errorMessage = 'Failed to load dashboard data';
+    }
+  });
 
-        this.totalRepositories = this.repositories.length;
-        this.calculateDashboardStats();
-      },
-      error: (error) => {
-        console.error('Error loading dashboard data:', error);
-        this.errorMessage = 'Failed to load dashboard data';
-      }
-    });
+  this.subscriptions.push(sub);
+}
 
-    this.subscriptions.push(sub);
-  }
 
   startPeriodicHealthCheck(): void {
     // Check health every 30 seconds

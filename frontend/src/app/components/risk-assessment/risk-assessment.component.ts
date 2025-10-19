@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { EnhancedApiService, RiskReport, Vulnerability, Dependency } from '../../services/enhanced-api.service';
@@ -9,7 +9,8 @@ import { Subscription } from 'rxjs';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './risk-assessment.component.html',
-  styleUrl: './risk-assessment.component.scss'
+  styleUrl: './risk-assessment.component.scss',
+  encapsulation: ViewEncapsulation.None
 })
 export class RiskAssessmentComponent implements OnInit, OnDestroy {
   
@@ -30,7 +31,7 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
   
   // AI Predictions
   aiRiskPrediction: any = null;
-  isPredicting = false;
+  isPredicting: { [reportId: string]: boolean } = {};
   
   // Filters
   riskLevelFilter: string = 'all';
@@ -150,6 +151,14 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
       default: return 'text-gray-600 bg-gray-100 border-gray-200';
     }
   }
+  getBadgeClass(risklevel:string): string{
+    switch(risklevel.toLowerCase()) {
+      case 'high': return 'ai-risk-high';
+      case 'medium': return 'ai-risk-medium';
+      case 'low': return 'ai-risk-low';
+      default: return 'ai-risk-unknown';
+    }
+  }
 
   selectReport(report: RiskReport) {
     this.selectedReport = report;
@@ -157,19 +166,22 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
   }
 
   generateAIPrediction(report?: RiskReport): void {
+    console.log('Generating AI prediction for report:', report || this.selectedReport);
     const target = report || this.selectedReport;
     if (!target) return;
 
-    this.isPredicting = true;
+    if(!report) return;
+
+    this.isPredicting[report.id] = true;
     const sub = this.api.getRiskPrediction(target.dependencies || []).subscribe({
       next: (prediction) => {
         this.aiRiskPrediction = prediction;
-        this.isPredicting = false;
+        this.isPredicting[report.id] = false;
       },
       error: (error) => {
         console.error('AI prediction error:', error);
         this.aiRiskPrediction = { error: 'AI prediction failed. Please try again.' };
-        this.isPredicting = false;
+        this.isPredicting[report.id] = false;
       }
     });
     

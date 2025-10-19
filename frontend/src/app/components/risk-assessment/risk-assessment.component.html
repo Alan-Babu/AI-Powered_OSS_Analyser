@@ -41,8 +41,8 @@
             <div class="flex items-center space-x-2">
               <button (click)="generateAIPrediction(report); $event.stopPropagation();" 
                       class="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
-                      [disabled]="isPredicting">
-                {{ isPredicting ? 'Analyzing...' : 'AI Analysis' }}
+                      [disabled]="isPredicting[report.id]">
+                {{ isPredicting[report.id] ? 'Analyzing...' : 'AI Analysis' }}
               </button>
               <button (click)="exportRiskReport(report); $event.stopPropagation();" 
                       class="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors">
@@ -66,7 +66,42 @@
         {{ aiRiskPrediction.error }}
       </div>
       <div *ngIf="!aiRiskPrediction.error" class="space-y-4">
-        <pre class="bg-gray-50 p-4 rounded-lg text-sm">{{ aiRiskPrediction | json }}</pre>
+        <ul class="ai-risk-list">
+          <li *ngFor="let dep of aiRiskPrediction.assessments" class="ai-risk-item">
+            <div class="flex-1">
+              <div class="ai-risk-header">
+                <h4 class="ai-risk-package-name">{{ dep.package_name }}</h4>
+
+                <!-- Risk Badge -->
+                <span
+                  class="ai-risk-badge"
+                  [class]="getBadgeClass(dep.risk_level)">
+                  {{ dep.risk_level || 'Unknown' }}
+                </span>
+
+                <!-- Score -->
+                <span class="ai-risk-score">
+                  Score: <span>{{ dep.risk_score | number:'1.1-1' }}</span>
+                </span>
+              </div>
+
+              <!-- Description -->
+              <p *ngIf="dep.description" class="ai-risk-description">
+                {{ dep.description }}
+              </p>
+
+              <!-- Recommendations -->
+              <div *ngIf="dep.recommendations?.length" class="ai-risk-recommendations">
+                <span *ngFor="let rec of dep.recommendations" class="ai-risk-recommendation-item">
+                  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586l-3.293-3.293A1 1 0 003.293 10.707l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"/>
+                  </svg>
+                  {{ rec }}
+                </span>
+              </div>
+            </div>
+          </li>
+        </ul>
       </div>
     </div>
   </div>
