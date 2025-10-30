@@ -37,3 +37,5 @@ application.properties
 .idea/
 vcs.xml
 docs/
+
+application.properties
