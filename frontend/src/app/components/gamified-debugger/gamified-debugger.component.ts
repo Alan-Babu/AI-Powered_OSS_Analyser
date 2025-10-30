@@ -1,8 +1,10 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GameService, Challenge, LeaderboardEntry, GameStats } from '../../services/game-service.service';
+import { GameService, Challenge, LeaderboardEntry, UserProgress } from '../../services/game-service.service';
 import { Subscription } from 'rxjs';
+import { AuthService } from '../../services/auth.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-gamified-debugger',
@@ -11,33 +13,30 @@ import { Subscription } from 'rxjs';
   templateUrl: './gamified-debugger.component.html',
   styleUrl: './gamified-debugger.component.scss'
 })
-export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
+export class GamifiedDebuggerComponent implements OnInit{
   
-  // Game state
-  currentLevel = 1;
+   // Game state
+  challenges: Challenge[] = [];
+  currentChallenge: Challenge | null = null;
+  leaderboard: LeaderboardEntry[] = [];
+  progress: UserProgress | null = null;
+
   score = 0;
+  currentLevel = 1;
   lives = 3;
-  timeRemaining = 300; // 5 minutes
-  isGameOver = false;
+  timeRemaining = 120; // seconds per challenge
+  timer: any;
+  averageTime = 0;
+
+  // Answer state
   isAnswerSubmitted = false;
   isAnswerCorrect = false;
-  
-  // Game utilities
-  Math = Math;
-  String = String;
-  
-  // Challenge data from service
-  currentChallenge: Challenge | null = null;
-  challenges: Challenge[] = [];
-  leaderboard: LeaderboardEntry[] = [];
-  gameStats: GameStats | null = null;
-  
-  // Game statistics
-  challengesCompleted = 0;
-  correctAnswers = 0;
-  totalTimeSpent = 0;
-  challengeStartTime = Date.now();
-  
+  selectedAnswerIndex: number | null = null;
+
+  // Game status
+  isGameOver = false;
+  totalChallengesCompleted = 0;
+
   // Loading states
   isLoading = false;
   isLoadingChallenges = false;
@@ -46,85 +45,88 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
   
   // Error states
   errorMessage: string | null = null;
+
+  Math = Math;
+  String = String;
   
   private subscriptions: Subscription[] = [];
 
-  private timer: any;
 
-  constructor(private gameService: GameService) {}
+
+  constructor(
+    private gameService: GameService, 
+    private authService: AuthService, 
+    private router: Router,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit() {
+    /*
+    if (!this.authService.isAuthenticated()) {
+      this.router.navigate(['/login']);
+      return;
+    }*/
     this.loadGameData();
-    this.startGame();
   }
 
-  ngOnDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
-    this.subscriptions.forEach(sub => sub.unsubscribe());
-  }
 
   loadGameData(): void {
-    this.loadChallenges();
-    this.loadLeaderboard();
-    this.loadGameStats();
+    this.isLoading = true;
+    this.gameService.getUserProgress().subscribe({
+      next: (progress) => {
+        this.progress = progress;
+        this.score = progress.score;
+        this.currentLevel = progress.level;
+        this.lives = progress.livesRemaining;
+
+        console.log('User progress loaded:', progress);
+
+        this.loadChallenges();
+        this.loadLeaderboard();
+
+        this.averageTime = this.calculateAverageTime();
+      },
+      error: (error) => {
+        console.warn('Failed to load user progress:', error);
+        this.loadChallenges();
+        this.loadLeaderboard();
+      }
+    });
   }
 
   loadChallenges(): void {
     this.isLoadingChallenges = true;
-    
-    const sub = this.gameService.getChallenges().subscribe({
-      next: (challenges) => {
-        this.challenges = challenges;
-        this.loadChallengeByLevel();
-        this.isLoadingChallenges = false;
+    this.gameService.getChallenges().subscribe({
+      next: (data) => {
+        this.challenges = data;
+        this.currentChallenge = data[0] || null;
+        this.startTimer();
       },
       error: (error) => {
         console.error('Error loading challenges:', error);
-        this.errorMessage = 'Failed to load challenges';
-        this.isLoadingChallenges = false;
       }
     });
-    
-    this.subscriptions.push(sub);
   }
 
   loadLeaderboard(): void {
     this.isLoadingLeaderboard = true;
-    
-    const sub = this.gameService.getLeaderboard().subscribe({
-      next: (leaderboard) => {
-        this.leaderboard = leaderboard;
-        this.isLoadingLeaderboard = false;
-      },
-      error: (error) => {
-        console.error('Error loading leaderboard:', error);
-        this.isLoadingLeaderboard = false;
-      }
+    this.gameService.getLeaderboard().subscribe({
+      next: (data) => {this.leaderboard = data;},
+      error: (error) => console.error('Error loading leaderboard:', error)
     });
-    
-    this.subscriptions.push(sub);
   }
 
-  loadGameStats(): void {
-    this.isLoadingStats = true;
-    
-    const sub = this.gameService.getUserStats().subscribe({
-      next: (stats) => {
-        this.gameStats = stats;
-        this.challengesCompleted = stats.challengesCompleted;
-        this.correctAnswers = stats.correctAnswers;
-        this.totalTimeSpent = stats.totalTimeSpent;
-        this.isLoadingStats = false;
-      },
-      error: (error) => {
-        console.error('Error loading game stats:', error);
-        this.isLoadingStats = false;
+  startTimer(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timeRemaining = 120;
+    this.timer = setInterval(() => {
+      this.timeRemaining--;
+      if (this.timeRemaining <= 0) {
+        clearInterval(this.timer);
+        this.handleTimeOut();
       }
-    });
-    
-    this.subscriptions.push(sub);
+      this.cdr.markForCheck(); // 👈 safely trigger change detection
+    }, 1000);
   }
 
   startGame() {
@@ -137,42 +139,80 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
   }
 
   submitAnswer(selectedAnswer: number) {
-    if (this.isAnswerSubmitted || !this.currentChallenge) return;
-    
+    if(!this.currentChallenge) return;
     this.isAnswerSubmitted = true;
-    this.isAnswerCorrect = selectedAnswer === this.currentChallenge.correctAnswer;
-    
-    const timeSpent = (Date.now() - this.challengeStartTime) / 1000;
-    
+    this.selectedAnswerIndex = selectedAnswer;
+    this.isAnswerCorrect = (selectedAnswer === this.currentChallenge.correctAnswer);
+
     if (this.isAnswerCorrect) {
-      this.score += this.getPointsForDifficulty(this.currentChallenge.difficulty);
-      this.correctAnswers++;
-      this.challengesCompleted++;
-      this.showSuccessMessage();
-    } else {
+      this.score += this.currentChallenge.points;
+      this.currentLevel++;
+      this.totalChallengesCompleted++;
+    }else{
       this.lives--;
-      this.showErrorMessage();
-      if (this.lives <= 0) {
+      if(this.lives <= 0){
         this.gameOver();
+        return;
       }
     }
-    
-    // Update total time spent
-    this.totalTimeSpent += timeSpent;
-    
-    // Submit result to backend
-    this.gameService.submitChallengeResult(
-      this.currentChallenge.id,
-      this.isAnswerCorrect,
-      timeSpent
-    ).subscribe({
-      next: (result) => {
-        console.log('Challenge result submitted:', result);
-      },
-      error: (error) => {
-        console.error('Failed to submit challenge result:', error);
-      }
+    this.updateUserProgress();
+
+  }
+
+  updateUserProgress() {
+    if(!this.progress) return;
+    const updatedProgress: UserProgress = {
+      userId: this.progress.userId,
+      score: this.score,
+      level: this.currentLevel,
+      livesRemaining: this.lives
+    };
+
+    this.gameService.updateProgress(updatedProgress).subscribe({
+      next: () => console.log('User progress updated successfully'),
+      error: (err) => console.error('Error updating user progress:', err)
     });
+  }
+
+  loadNextChallenge(): void {
+    this.isAnswerSubmitted = false;
+    this.selectedAnswerIndex = null;
+
+    const currentIndex = this.challenges.findIndex(c=> c.id === this.currentChallenge?.id);
+    const nextIndex = (currentIndex + 1) % this.challenges.length;
+    this.currentChallenge = this.challenges[nextIndex];
+    this.startTimer();
+  }
+    
+  handleTimeOut(): void {
+    this.isAnswerSubmitted = true;
+    this.isAnswerCorrect = false;
+    this.lives--;
+
+    if(this.lives <= 0){
+      this.gameOver();
+    }
+  }
+
+
+  showErrorMessage() {
+    // Show error animation/message
+    console.log('Incorrect answer. Lives remaining: ' + this.lives);
+  }
+
+  gameOver() {
+    clearInterval(this.timer);
+    this.isGameOver = true;
+
+  }
+
+  restartGame() {
+    this.score = 0;
+    this.currentLevel = 1;
+    this.lives = 3;
+    this.isGameOver = false;
+    this.totalChallengesCompleted = 0;
+    this.loadChallenges();
   }
 
   getPointsForDifficulty(difficulty: string): number {
@@ -182,31 +222,6 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
       case 'hard': return 200;
       default: return 100;
     }
-  }
-
-  getDifficultyColor(difficulty: string): string {
-    switch (difficulty) {
-      case 'easy': return 'bg-green-100 text-green-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'hard': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  getAnswerButtonClass(answerIndex: number): string {
-    if (!this.isAnswerSubmitted) {
-      return 'border-gray-300 hover:border-blue-300 hover:bg-blue-50';
-    }
-    
-    if (answerIndex === this.currentChallenge?.correctAnswer) {
-      return 'border-green-500 bg-green-50';
-    }
-    
-    if (this.isAnswerSubmitted && answerIndex !== this.currentChallenge?.correctAnswer) {
-      return 'border-red-500 bg-red-50';
-    }
-    
-    return 'border-gray-300';
   }
 
   getAnswerIndicatorClass(answerIndex: number): string {
@@ -225,103 +240,35 @@ export class GamifiedDebuggerComponent implements OnInit, OnDestroy {
     return 'border-gray-400 text-gray-600';
   }
 
-  loadNextChallenge() {
-    this.isAnswerSubmitted = false;
-    this.isAnswerCorrect = false;
-    this.challengeStartTime = Date.now();
-    
-    if (this.isAnswerCorrect) {
-      this.currentLevel++;
-      this.loadChallengeByLevel();
+  getAnswerButtonClass(i: number): string {
+    if (!this.isAnswerSubmitted) return '';
+    if (i === this.selectedAnswerIndex && this.isAnswerCorrect) return 'border-green-500 bg-green-50';
+    if (i === this.selectedAnswerIndex && !this.isAnswerCorrect) return 'border-red-500 bg-red-50';
+    return '';
+  }
+
+  getDifficultyColor(difficulty: string): string {
+    switch (difficulty) {
+      case 'easy': return 'bg-green-100 text-green-700';
+      case 'medium': return 'bg-yellow-100 text-yellow-700';
+      case 'hard': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
     }
-    
-    // Reset timer for new challenge
-    this.timeRemaining = Math.max(120, 300 - (this.currentLevel * 10)); // Decrease time as level increases
-  }
-
-  loadChallengeByLevel() {
-    // Find a challenge that matches the current level or difficulty
-    const availableChallenges = this.challenges.filter(c => {
-      if (this.currentLevel <= 2) return c.difficulty === 'easy';
-      if (this.currentLevel <= 4) return c.difficulty === 'medium';
-      return c.difficulty === 'hard';
-    });
-    
-    if (availableChallenges.length > 0) {
-      // Select a random challenge from the available ones
-      const randomIndex = Math.floor(Math.random() * availableChallenges.length);
-      this.currentChallenge = availableChallenges[randomIndex];
-    } else {
-      // Fallback to first challenge if none available
-      this.currentChallenge = this.challenges[0] || null;
-    }
-    
-    this.challengeStartTime = Date.now();
-  }
-
-  showSuccessMessage() {
-    // Show success animation/message
-    if (this.currentChallenge) {
-      console.log('Correct answer! +' + this.getPointsForDifficulty(this.currentChallenge.difficulty) + ' points');
-    }
-  }
-
-  showErrorMessage() {
-    // Show error animation/message
-    console.log('Incorrect answer. Lives remaining: ' + this.lives);
-  }
-
-  gameOver() {
-    clearInterval(this.timer);
-    this.isGameOver = true;
-    this.updateLeaderboard();
-  }
-
-  restartGame() {
-    this.currentLevel = 1;
-    this.score = 0;
-    this.lives = 3;
-    this.timeRemaining = 300;
-    this.isGameOver = false;
-    this.isAnswerSubmitted = false;
-    this.isAnswerCorrect = false;
-    this.challengesCompleted = 0;
-    this.correctAnswers = 0;
-    this.totalTimeSpent = 0;
-    this.challengeStartTime = Date.now();
-    
-    this.loadChallengeByLevel();
-    this.startGame();
-  }
-
-  updateLeaderboard() {
-    // Add current player to leaderboard
-    const currentPlayer = {
-      name: 'Player',
-      score: this.score,
-      level: this.currentLevel,
-      challengesCompleted: this.challengesCompleted,
-      averageTime: this.calculateAverageTime()
-    };
-    
-    this.leaderboard.push(currentPlayer);
-    this.leaderboard.sort((a, b) => b.score - a.score);
-    this.leaderboard = this.leaderboard.slice(0, 10); // Keep top 10
   }
 
   calculateSuccessRate(): number {
-    if (this.challengesCompleted === 0) return 0;
-    return Math.round((this.correctAnswers / this.challengesCompleted) * 100);
-  }
-
-  calculateAverageTime(): number {
-    if (this.challengesCompleted === 0) return 0;
-    return Math.round(this.totalTimeSpent / this.challengesCompleted);
+    if (this.totalChallengesCompleted === 0) return 0;
+    return Math.round((this.score / (this.totalChallengesCompleted * 200)) * 100);
   }
 
   calculateRank(): number {
-    const playerScore = this.score;
-    const rank = this.leaderboard.findIndex(player => player.score <= playerScore) + 1;
-    return rank || this.leaderboard.length + 1;
+    const sorted = [...this.leaderboard].sort((a, b) => b.score - a.score);
+    const index = sorted.findIndex(p => p.name === 'You');
+    return index !== -1 ? index + 1 : sorted.length;
+  }
+
+  calculateAverageTime(): number {
+    return 60 + Math.floor(Math.random() * 20);
   }
 }
+  

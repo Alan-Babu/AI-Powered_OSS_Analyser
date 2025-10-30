@@ -1,9 +1,13 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of, throwError } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
-import { catchError } from 'rxjs/operators';
+import { AuthService } from './auth.service';
 
+// ==============================
+// 🔹 Interface Definitions
+// ==============================
 export interface Challenge {
   id: number;
   title: string;
@@ -33,12 +37,154 @@ export interface GameStats {
   currentStreak: number;
 }
 
+export interface UserProgress {
+  userId: number;
+  score: number;
+  level: number;
+  livesRemaining: number;
+}
+
+// ==============================
+// 🔹 Game Service
+// ==============================
 @Injectable({ providedIn: 'root' })
 export class GameService {
-  private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.apiBaseUrl;
 
-  // Default challenges if backend is not available
+  constructor(private http: HttpClient, private authService: AuthService) {}
+
+  // --- Helper: Include JWT token if available ---
+  private get headers() {
+    const token = this.authService.getToken();
+    return {
+      headers: new HttpHeaders({
+        'Content-Type': 'application/json',
+        Authorization: token ? `Bearer ${token}` : ''
+      })
+    };
+  }
+
+  // =============================
+  // 🔹 Challenges
+  // =============================
+  getChallenges(): Observable<Challenge[]> {
+    return this.http.get<Challenge[]>(`${this.baseUrl}/challenges`, this.headers)
+      .pipe(
+        catchError(() => {
+          console.warn('Backend not reachable — using local challenges');
+          return of(this.defaultChallenges);
+        })
+      );
+  }
+
+  getChallengeById(id: number): Observable<Challenge | null> {
+    return this.http.get<Challenge>(`${this.baseUrl}/challenges/${id}`, this.headers)
+      .pipe(
+        catchError(() => {
+          const local = this.defaultChallenges.find(c => c.id === id) || null;
+          return of(local);
+        })
+      );
+  }
+
+  getChallengesByDifficulty(difficulty: string): Observable<Challenge[]> {
+    return this.http.get<Challenge[]>(`${this.baseUrl}/challenges?difficulty=${difficulty}`, this.headers)
+      .pipe(
+        catchError(() => of(this.defaultChallenges.filter(c => c.difficulty === difficulty)))
+      );
+  }
+
+  getChallengesByCategory(category: string): Observable<Challenge[]> {
+    return this.http.get<Challenge[]>(`${this.baseUrl}/challenges?category=${category}`, this.headers)
+      .pipe(
+        catchError(() => of(this.defaultChallenges.filter(c => c.category === category)))
+      );
+  }
+
+  // =============================
+  // 🔹 Leaderboard
+  // =============================
+  getLeaderboard(): Observable<LeaderboardEntry[]> {
+    return this.http.get<LeaderboardEntry[]>(`${this.baseUrl}/leaderboard`, this.headers)
+      .pipe(
+        catchError(() => {
+          console.warn('Backend not reachable — using local leaderboard');
+          return of(this.defaultLeaderboard);
+        })
+      );
+  }
+
+  // =============================
+  // 🔹 User Progress
+  // =============================
+  getUserProgress(): Observable<UserProgress> {
+    const token = this.authService.getToken();
+    if (!token) {
+      console.warn('No token found — user not logged in.');
+      return of({ userId: 0, score: 0, level: 1, livesRemaining: 3 });
+    }
+
+    return this.http.get<UserProgress>(`${this.baseUrl}/user/progress/me`, this.headers)
+      .pipe(
+        catchError(() => {
+          console.warn('Backend not reachable — using default progress');
+          return of({ userId: 0, score: 0, level: 1, livesRemaining: 3 });
+        })
+      );
+  }
+
+  updateProgress(progress: UserProgress): Observable<void> {
+    const token = this.authService.getToken();
+    if (!token) return throwError(() => new Error('User not authenticated'));
+
+    return this.http.put<void>(`${this.baseUrl}/user/progress/${progress.userId}`, progress, this.headers)
+      .pipe(
+        catchError(err => {
+          console.error('Update progress failed:', err);
+          return throwError(() => err);
+        })
+      );
+  }
+
+  // =============================
+  // 🔹 Challenge Submission
+  // =============================
+  submitChallengeResult(challengeId: number, isCorrect: boolean, timeSpent: number): Observable<any> {
+    const payload = {
+      challengeId,
+      isCorrect,
+      timeSpent,
+      timestamp: new Date().toISOString()
+    };
+
+    return this.http.post(`${this.baseUrl}/user/submit`, payload, this.headers)
+      .pipe(
+        catchError(() => {
+          console.warn('Backend not reachable — result stored locally');
+          return of({ success: true, message: 'Result recorded locally (offline)' });
+        })
+      );
+  }
+
+  // =============================
+  // 🔹 Game Statistics
+  // =============================
+  getUserStats(): Observable<GameStats> {
+    return this.http.get<GameStats>(`${this.baseUrl}/user/stats`, this.headers)
+      .pipe(
+        catchError(() => of({
+          challengesCompleted: 0,
+          correctAnswers: 0,
+          totalTimeSpent: 0,
+          averageScore: 0,
+          currentStreak: 0
+        }))
+      );
+  }
+
+  // =============================
+  // 🔹 Default Local Data
+  // =============================
   private defaultChallenges: Challenge[] = [
     {
       id: 1,
@@ -149,64 +295,4 @@ export class GameService {
     { name: 'VulnHunter', score: 1800, level: 4, challengesCompleted: 18, averageTime: 58 },
     { name: 'SecureDev', score: 1500, level: 3, challengesCompleted: 15, averageTime: 65 }
   ];
-
-  // Get challenges from backend or use defaults
-  getChallenges(): Observable<Challenge[]> {
-    // Use defaults directly to avoid 401 noise if backend endpoints are absent
-    return of(this.defaultChallenges);
-  }
-
-  // Get leaderboard from backend or use defaults
-  getLeaderboard(): Observable<LeaderboardEntry[]> {
-    // Use defaults directly to avoid 401 noise if backend endpoints are absent
-    return of(this.defaultLeaderboard);
-  }
-
-  // Submit challenge result
-  submitChallengeResult(challengeId: number, isCorrect: boolean, timeSpent: number): Observable<any> {
-    const result = {
-      challengeId,
-      isCorrect,
-      timeSpent,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Record locally; skip backend call to avoid errors
-    return of({ success: true, message: 'Result recorded locally' });
-  }
-
-  // Get user game statistics
-  getUserStats(): Observable<GameStats> {
-    // Use defaults directly to avoid 401 noise if backend endpoints are absent
-    return of({
-      challengesCompleted: 0,
-      correctAnswers: 0,
-      totalTimeSpent: 0,
-      averageScore: 0,
-      currentStreak: 0
-    });
-  }
-
-  // Get challenge by ID
-  getChallengeById(id: number): Observable<Challenge | null> {
-    const challenge = this.defaultChallenges.find(c => c.id === id) || null;
-    return of(challenge);
-  }
-
-  // Get challenges by difficulty
-  getChallengesByDifficulty(difficulty: string): Observable<Challenge[]> {
-    const challenges = this.defaultChallenges.filter(c => c.difficulty === difficulty);
-    return of(challenges);
-  }
-
-  // Get challenges by category
-  getChallengesByCategory(category: string): Observable<Challenge[]> {
-    const challenges = this.defaultChallenges.filter(c => c.category === category);
-    return of(challenges);
-  }
-
-  private handleError(error: any): Observable<never> {
-    console.error('Game Service Error:', error);
-    return throwError(() => new Error(error.error?.message || error.message || 'An error occurred'));
-  }
 }
