@@ -52,11 +52,17 @@ public class SecurityConfig {
             .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/**").permitAll()
+
+                .requestMatchers("/api/leaderboard/**").permitAll()
+                .requestMatchers("/api/challenges/**").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
+
+                .requestMatchers("/api/user/**").authenticated()
+                .requestMatchers("/api/game/**").authenticated()
+
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/repo/**").permitAll() // Temporarily allow public access for testing
                 .requestMatchers("/api/ai/**").permitAll()
-                .requestMatchers("/api/game/**").permitAll()
-                .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers(
                         "/swagger-ui.html",   // older entrypoint
                         "/swagger-ui/**",     // static resources
