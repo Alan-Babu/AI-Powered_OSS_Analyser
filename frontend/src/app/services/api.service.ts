@@ -69,8 +69,10 @@ export interface ScanProgress {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private readonly http = inject(HttpClient);
+  //private http = inject(HttpClient);
   private readonly baseUrl = environment.apiBaseUrl;
+
+  constructor(private http: HttpClient) {}
 
   // Repository scanning
   scanRepository(request: ScanRequest): Observable<RiskReport> {
@@ -82,10 +84,11 @@ export class ApiService {
       .set('includeLicenseCheck', request.includeLicenseCheck?.toString() || 'true')
       .set('includeCodeAnalysis', request.includeCodeAnalysis?.toString() || 'false');
     
-    return this.http.post<RiskReport>(`${this.baseUrl}/repo/scan`, null, { params })
-      .pipe(
+    
+   return this.http.post<RiskReport>(`${this.baseUrl}/repo/scan`, null, { params })
+    .pipe(
         catchError(this.handleError)
-      );
+    );
   }
 
   // Repository management
@@ -117,6 +120,14 @@ export class ApiService {
       .pipe(
         catchError(this.handleError)
       );
+  }
+
+  getScanProgress(repoUrl: string): Observable<any> {
+    // For now, just return a dummy Observable that emits 100% immediately
+    return new Observable(observer => {
+      observer.next({ progress: 100, step: 'Scan completed' });
+      observer.complete();
+    });
   }
 
   // Vulnerability management

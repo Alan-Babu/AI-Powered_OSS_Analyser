@@ -1,8 +1,13 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { EnhancedApiService, RiskReport, ScanRequest, ScanProgress, RepositoryMetadata } from '../../services/enhanced-api.service';
-import { Subscription } from 'rxjs';
+import { EnhancedApiService, RiskReport, ScanRequest,  RepositoryMetadata } from '../../services/enhanced-api.service';
+import { Subscription, Observable } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { startScan } from '../../statemanagement/scan/scan.actions';
+import { selectIsScanning, selectProgress, selectCurrentStep, selectResults, selectError } from '../../statemanagement/scan/scan.selectors';
+import { ScanState } from '../../statemanagement/scan/scan.state';
+
 
 @Component({
   selector: 'app-repository-scan',
@@ -14,12 +19,18 @@ import { Subscription } from 'rxjs';
 export class RepositoryScanComponent implements OnInit, OnDestroy {
   
   scanForm: FormGroup;
-  isScanning = false;
-  scanProgress: ScanProgress | null = null;
-  scanResults: RiskReport | null = null;
+  //isScanning = false;
+  //scanProgress: ScanProgress | null = null;
+  //scanResults: RiskReport | null = null;
   scanHistory: RepositoryMetadata[] = [];
-  errorMessage: string | null = null;
+  //errorMessage: string | null = null;
   servicesHealth: any = {};
+  isScanning$: Observable<boolean> = new Observable<boolean>();
+  progress$: Observable<number> = new Observable<number>();
+  currentStep$: Observable<string> = new Observable<string>();
+  scanResults$: Observable<any> = new Observable<any>();
+  errorMessage$: Observable<string | null> = new Observable<string | null>();
+  
   
   // Real-time data
   repositories: RepositoryMetadata[] = [];
@@ -36,7 +47,8 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly fb: FormBuilder, 
-    private readonly api: EnhancedApiService
+    private readonly api: EnhancedApiService,
+    private readonly store: Store<{ scan: ScanState }>
   ) {
     this.scanForm = this.fb.group({
       repositoryUrl: ['', [Validators.required, Validators.pattern('https?://.*')]],
@@ -49,8 +61,12 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.isScanning$ = this.store.select(selectIsScanning);
+    this.progress$ = this.store.select(selectProgress);
+    this.currentStep$ = this.store.select(selectCurrentStep);
+    this.scanResults$ = this.store.select(selectResults);
+    this.errorMessage$ = this.store.select(selectError);
     this.loadInitialData();
-    this.subscribeToProgressUpdates();
   }
 
   ngOnDestroy(): void {
@@ -63,15 +79,15 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
     this.loadRepositories();
   }
 
-get paginatedScanHistory(): RepositoryMetadata[] {
-  const start = (this.currentPage - 1) * this.itemsPerPage;
-  const end = start + this.itemsPerPage;
-  return this.scanHistory.slice(start, end);
-}
+  get paginatedScanHistory(): RepositoryMetadata[] {
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    const end = start + this.itemsPerPage;
+    return this.scanHistory.slice(start, end);
+  }
 
-get totalPages(): number {
-  return Math.ceil(this.scanHistory.length / this.itemsPerPage);
-}
+  get totalPages(): number {
+    return Math.ceil(this.scanHistory.length / this.itemsPerPage);
+  }
 
 
   loadScanHistory(): void {
@@ -94,7 +110,7 @@ get totalPages(): number {
       },
       error: (error) => {
         console.error('Error loading scan history:', error);
-        this.errorMessage = 'Failed to load scan history';
+        console.error('Failed to load scan history');
         this.isLoadingHistory = false;
       }
     });
@@ -142,85 +158,14 @@ get totalPages(): number {
     this.subscriptions.push(sub);
   }
 
-  subscribeToProgressUpdates(): void {
-    const sub = this.api.scanProgress$.subscribe(progress => {
-      this.scanProgress = progress;
-    });
-    
-    this.subscriptions.push(sub);
-  }
 
   onSubmit(): void {
     if (this.scanForm.valid) {
-      this.startScan();
+      const repoUrl = this.scanForm.value.repositoryUrl;
+      this.store.dispatch(startScan({ repoUrl }));
     }
   }
 
-  startScan(): void {
-    this.isScanning = true;
-    this.errorMessage = null;
-    this.scanResults = null;
-
-    // Initialize progress
-    this.api.updateScanProgress({
-      status: 'scanning',
-      progress: 0,
-      currentStep: 'Initializing scan...'
-    });
-
-    const scanRequest: ScanRequest = {
-      url: this.scanForm.value.repositoryUrl,
-      scanType: this.scanForm.value.scanType,
-      includeDependencies: this.scanForm.value.includeDependencies,
-      includeVulnerabilities: this.scanForm.value.includeVulnerabilities,
-      includeLicenseCheck: this.scanForm.value.includeLicenseCheck,
-      includeCodeAnalysis: this.scanForm.value.includeCodeAnalysis
-    };
-
-    // Simulate progress updates
-    const progressInterval = setInterval(() => {
-      if (this.scanProgress && this.scanProgress.progress < 90) {
-        this.api.updateScanProgress({
-          ...this.scanProgress,
-          progress: this.scanProgress.progress + Math.random() * 15,
-          currentStep: this.getProgressStep(this.scanProgress.progress)
-        });
-      }
-    }, 1000);
-
-    // Begin backend scan
-    const sub = this.api.scanRepository(scanRequest).subscribe({
-      next: (report) => {
-        clearInterval(progressInterval);
-        
-        // Complete progress
-        this.api.updateScanProgress({
-          status: 'completed',
-          progress: 100,
-          currentStep: 'Scan completed successfully!'
-        });
-        
-        setTimeout(() => {
-          this.isScanning = false;
-          this.completeScan(report);
-          this.api.clearScanProgress();
-        }, 500);
-      },
-      error: (error) => {
-        clearInterval(progressInterval);
-        this.isScanning = false;
-        this.api.updateScanProgress({
-          status: 'failed',
-          progress: 0,
-          currentStep: 'Scan failed'
-        });
-        this.errorMessage = error.message || 'Scan failed. Please try again.';
-        console.error('Scan error:', error);
-      }
-    });
-    
-    this.subscriptions.push(sub);
-  }
 
   private getProgressStep(progress: number): string {
     if (progress < 20) return 'Cloning repository...';
@@ -230,11 +175,11 @@ get totalPages(): number {
     if (progress < 90) return 'Finalizing report...';
     return 'Completing scan...';
   }
-
+/*
   completeScan(report: RiskReport): void {
-    this.scanResults = report;
+    this.store.dispatch({ type: '[Scan] Complete', results: report });
     this.loadScanHistory();
-  }
+  }*/
 
   // Utility methods
   private extractOwner(repoUrl: string): string {
@@ -275,13 +220,14 @@ get totalPages(): number {
   }
 
   clearError(): void {
-    this.errorMessage = null;
+     this.store.dispatch({ type: '[Scan] Clear Error' }); 
   }
 
   retryScan(): void {
     if (this.scanForm.valid) {
-      this.startScan();
-    }
+    const repoUrl = this.scanForm.value.repositoryUrl;
+    this.store.dispatch(startScan({ repoUrl }));
+  }
   }
 
   // Helper methods for template

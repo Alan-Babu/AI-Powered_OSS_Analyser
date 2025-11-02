@@ -88,44 +88,60 @@
           </div>
 
           <button
-            type="submit"
-            [disabled]="scanForm.invalid || isScanning"
-            class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
-          >
-            <svg *ngIf="!isScanning" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
-            <svg *ngIf="isScanning" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
-            <span>{{ isScanning ? 'Scanning...' : 'Start Scan' }}</span>
+              type="submit"
+              [disabled]="scanForm.invalid || (isScanning$ | async)"
+              class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
+            >
+              <svg *ngIf="!(isScanning$ | async)" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+
+              <svg *ngIf="isScanning$ | async" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                </path>
+              </svg>
+
+              <span>{{ (isScanning$ | async) ? 'Scanning...' : 'Start Scan' }}</span>
           </button>
         </form>
 
         <!-- Scan Progress -->
-        <div *ngIf="isScanning" class="mt-6">
+        <div *ngIf="isScanning$ | async" class="mt-6 transition-all duration-500">
           <div class="flex items-center justify-between text-sm text-gray-600 mb-2">
             <span>Scan Progress</span>
-            <span>{{ scanProgress?.progress?.toFixed(0) || 0 }}%</span>
+            <span>{{ (progress$ | async) || 0 }}%</span>
           </div>
-          <div class="w-full bg-gray-200 rounded-full h-2">
-            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" [style.width.%]="scanProgress?.progress || 0"></div>
+
+          <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div class="bg-blue-600 h-2 rounded-full transition-all duration-700 ease-out"
+                [style.width.%]="(progress$ | async) || 0"></div>
           </div>
-          <div class="text-sm text-gray-600 mt-2">{{ scanProgress?.currentStep || 'Initializing...' }}</div>
+
+          <div class="text-sm text-gray-600 mt-2 italic">
+            {{ (currentStep$ | async) || 'Initializing...' }}
+          </div>
         </div>
 
+
+
         <!-- Error Message -->
-        <div *ngIf="errorMessage" class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div *ngIf="(errorMessage$ | async) as errorMessage" class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div class="flex items-center justify-between">
             <div class="flex items-center">
               <svg class="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                <path fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clip-rule="evenodd"></path>
               </svg>
               <span class="text-red-800">{{ errorMessage }}</span>
             </div>
             <button (click)="clearError()" class="text-red-400 hover:text-red-600" title="Clear error message">
               <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                <path fill-rule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clip-rule="evenodd"></path>
               </svg>
             </button>
           </div>
@@ -136,7 +152,7 @@
     <!-- Scan Results or History -->
     <div class="lg:col-span-2">
       <!-- Scan Results -->
-      <div *ngIf="scanResults" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div *ngIf="(scanResults$ | async) as scanResults" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">Scan Results</h2>
         
         <!-- Repository Info -->
@@ -158,97 +174,43 @@
               </div>
             </div>
           </div>
-
-          <div class="p-4 bg-gray-50 rounded-lg">
-            <h3 class="font-medium text-gray-900 mb-2">Security Overview</h3>
-            <div class="space-y-2 text-sm">
-              <div class="flex justify-between">
-                <span class="text-gray-600">Risk Level:</span>
-                <span class="px-2 py-1 rounded-full text-xs font-medium" [class]="getRiskColor(getRiskLevel(scanResults.riskScore || 0))">
-                  {{ getRiskLevel(scanResults.riskScore || 0) }}
+          ...   
+        </div>
+        <!-- Dependencies Section -->
+        <div class="p-4 bg-gray-50 rounded-lg md:col-span-2">
+          <h3 class="font-medium text-gray-900 mb-2">Dependencies Analysis</h3>
+          <div *ngIf="scanResults.dependencies?.length; else noDeps">
+            <div *ngFor="let dep of scanResults.dependencies" class="p-3 mb-2 border border-gray-200 rounded-lg">
+              <div class="flex justify-between items-center">
+                <span class="font-medium">{{ dep.name +'@'+ dep.version }}</span>
+                <span
+                  class="px-2 py-0.5 rounded-full text-xs font-medium"
+                  [class]="dep.vulnerable ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'">
+                  {{ dep.vulnerable ? 'Vulnerable' : 'Secure' }}
                 </span>
               </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Total Vulnerabilities:</span>
-                <span class="font-medium">{{ getTotalVulnerabilities(scanResults) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Vulnerable Dependencies:</span>
-                <span class="font-medium">{{ getVulnerableDependencies(scanResults) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <!-- Vulnerabilities -->
-        <div *ngIf="getTotalVulnerabilities(scanResults) > 0" class="mb-6">
-          <h3 class="font-medium text-gray-900 mb-3">Vulnerabilities Found</h3>
-          <div class="space-y-3">
-            <div *ngFor="let vuln of getAllVulnerabilities(scanResults)" 
-                 class="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div class="flex items-start justify-between">
-                <div class="flex-1">
-                  <div class="flex items-center space-x-2 mb-1">
-                    <span class="px-2 py-1 rounded-full text-xs font-medium text-red-800 bg-red-200">
-                      {{ getSeverity(vuln) }}
-                    </span>
-                    <span class="text-sm font-mono text-red-800">{{ vuln.cve || vuln.id }}</span>
-                  </div>
-                  <p class="text-sm text-red-700 mb-1">{{ vuln.description }}</p>
-                  <p class="text-xs text-red-600">CVSS: {{ vuln.cvssScore }}/10</p>
-                  <p class="text-xs text-red-600">Dependency: {{ getDependencyName(vuln, scanResults) }}</p>
+              <div class="text-xs text-gray-600 mt-1">Ecosystem: {{ dep.ecosystem }}</div>
+              <div class="text-xs text-gray-600 mt-1">Outdated: {{ dep.outdated }}</div>
+
+              <!-- Vulnerabilities inside dependency -->
+              <div *ngIf="dep.vulnerabilities?.length" class="mt-2">
+                <div *ngFor="let vuln of dep.vulnerabilities" class="p-2 bg-red-50 border border-red-100 rounded-lg mt-1">
+                  <p class="text-sm font-semibold text-red-700">{{ vuln.cve }}</p>
+                  <p class="text-xs text-gray-700">{{ vuln.description | slice:0:160 }}...</p>
+                  <p class="text-xs text-gray-500 mt-1">
+                    CVSS: {{ vuln.cvssScore }} | Fix: {{ vuln.fixVersion || 'Unknown' }}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- Dependencies -->
-        <div class="mb-6">
-          <h3 class="font-medium text-gray-900 mb-3">Dependencies Analysis</h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="text-center p-3 bg-blue-50 rounded-lg">
-              <div class="text-2xl font-bold text-blue-600">{{ scanResults.dependencies.length || 0 }}</div>
-              <div class="text-sm text-blue-700">Total</div>
-            </div>
-            <div class="text-center p-3 bg-green-50 rounded-lg">
-              <div class="text-2xl font-bold text-green-600">{{ getSecureDependencies(scanResults) }}</div>
-              <div class="text-sm text-green-700">Secure</div>
-            </div>
-            <div class="text-center p-3 bg-yellow-50 rounded-lg">
-              <div class="text-2xl font-bold text-yellow-600">{{ getOutdatedDependencies(scanResults) }}</div>
-              <div class="text-sm text-yellow-700">Outdated</div>
-            </div>
-            <div class="text-center p-3 bg-red-50 rounded-lg">
-              <div class="text-2xl font-bold text-red-600">{{ getVulnerableDependencies(scanResults) }}</div>
-              <div class="text-sm text-red-700">Vulnerable</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Services Health -->
-        <div class="mb-6">
-          <h3 class="font-medium text-gray-900 mb-3">AI Services Health</h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="text-center p-3 rounded-lg" [class]="getServiceHealthColor('securityScanner')">
-              <div class="text-sm font-medium">Security Scanner</div>
-              <div class="text-xs">{{ servicesHealth.securityScanner || 'unknown' }}</div>
-            </div>
-            <div class="text-center p-3 rounded-lg" [class]="getServiceHealthColor('nlpExplainer')">
-              <div class="text-sm font-medium">NLP Explainer</div>
-              <div class="text-xs">{{ servicesHealth.nlpExplainer || 'unknown' }}</div>
-            </div>
-            <div class="text-center p-3 rounded-lg" [class]="getServiceHealthColor('riskModel')">
-              <div class="text-sm font-medium">Risk Model</div>
-              <div class="text-xs">{{ servicesHealth.riskModel || 'unknown' }}</div>
-            </div>
-            <div class="text-center p-3 rounded-lg" [class]="getServiceHealthColor('knowledgeGraph')">
-              <div class="text-sm font-medium">Knowledge Graph</div>
-              <div class="text-xs">{{ servicesHealth.knowledgeGraph || 'unknown' }}</div>
-            </div>
-          </div>
+          <ng-template #noDeps>
+            <p class="text-sm text-gray-500 italic">No dependencies detected in this repository.</p>
+          </ng-template>
         </div>
       </div>
+
 
       <!-- Scan History -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200">
