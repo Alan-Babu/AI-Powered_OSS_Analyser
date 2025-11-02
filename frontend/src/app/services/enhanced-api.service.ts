@@ -7,6 +7,7 @@ export interface RepositoryMetadata {
   id: number;
   repoUrl: string;
   owner: string;
+  scanDate?: string;
   projectName: string;
   lastScanDate?: string;
   status?: string;

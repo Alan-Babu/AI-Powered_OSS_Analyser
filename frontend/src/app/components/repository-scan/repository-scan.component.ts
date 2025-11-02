@@ -81,6 +81,7 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
   get paginatedScanHistory(): RepositoryMetadata[] {
     const start = (this.currentPage - 1) * this.itemsPerPage;
     const end = start + this.itemsPerPage;
+    console.log(this.scanHistory);
     return this.scanHistory.slice(start, end);
   }
 
@@ -113,7 +114,7 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
         this.isLoadingHistory = false;
       }
     });
-    
+    console.log(this.scanHistory);
     this.subscriptions.push(sub);
   }
 

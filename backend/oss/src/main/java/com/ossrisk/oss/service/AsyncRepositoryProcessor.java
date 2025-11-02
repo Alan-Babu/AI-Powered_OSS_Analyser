@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -68,6 +69,7 @@ public class AsyncRepositoryProcessor {
             report.setRiskScore(score);
             report.setDependencies(checkedDeps);
             report.setTotalVulnerabilities(totalVulns);
+            report.setScanDate(LocalDateTime.now());
             RiskReport savedReport = riskReportRepo.save(report);
             
             return CompletableFuture.completedFuture(savedReport);
