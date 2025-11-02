@@ -19,17 +19,16 @@ import { ScanState } from '../../statemanagement/scan/scan.state';
 export class RepositoryScanComponent implements OnInit, OnDestroy {
   
   scanForm: FormGroup;
-  //isScanning = false;
-  //scanProgress: ScanProgress | null = null;
-  //scanResults: RiskReport | null = null;
   scanHistory: RepositoryMetadata[] = [];
-  //errorMessage: string | null = null;
   servicesHealth: any = {};
   isScanning$: Observable<boolean> = new Observable<boolean>();
   progress$: Observable<number> = new Observable<number>();
   currentStep$: Observable<string> = new Observable<string>();
   scanResults$: Observable<any> = new Observable<any>();
   errorMessage$: Observable<string | null> = new Observable<string | null>();
+
+  vulnCurrentPage = 1;
+  vulnItemsPerPage = 5;
   
   
   // Real-time data
@@ -41,7 +40,7 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
   isLoadingHealth = false;
   isLoadingRepositories = false;
   currentPage = 1;
-  itemsPerPage = 5
+  itemsPerPage = 3;
   
   private subscriptions: Subscription[] = [];
 
@@ -291,4 +290,46 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
     return `${Math.floor(diffInSeconds / 86400)}d ago`;
   }
+
+  //pagination methods
+
+  // Computed indexes
+  get vulnStartIndex(): number {
+    return (this.vulnCurrentPage - 1) * this.vulnItemsPerPage;
+  }
+
+  get vulnEndIndex(): number {
+    return this.vulnCurrentPage * this.vulnItemsPerPage;
+  }
+
+  // Compute total pages dynamically
+  get vulnTotalPages(): number {
+    if (!this.lastVulnListLength) return 1;
+    return Math.ceil(this.lastVulnListLength / this.vulnItemsPerPage);
+  }
+
+  private lastVulnListLength = 0;
+
+  // Returns paginated vulnerabilities
+  paginatedVulnerabilities(report: RiskReport): any[] {
+    const all = this.getAllVulnerabilities(report);
+    this.lastVulnListLength = all.length;
+    const start = this.vulnStartIndex;
+    const end = this.vulnEndIndex;
+    return all.slice(start, end);
+  }
+
+  // Navigation handlers
+  vulnNextPage(): void {
+    if (this.vulnCurrentPage < this.vulnTotalPages) {
+      this.vulnCurrentPage++;
+    }
+  }
+
+  vulnPrevPage(): void {
+    if (this.vulnCurrentPage > 1) {
+      this.vulnCurrentPage--;
+    }
+  }
+
 }
