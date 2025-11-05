@@ -39,15 +39,10 @@ public class GameController {
         return ResponseEntity.ok(gameService.getOrCreateProgress(user));
     }
 
-    @PutMapping("/user/progress/{userId}")
-    public ResponseEntity<?> updateProgress(
-            @PathVariable Long userId,
-            @RequestBody UserProgress req,
-            Authentication auth){
-        User user = userRepository.findById(userId).orElseThrow();
-        if(!auth.getName().equals(user.getUsername()))
-            return ResponseEntity.status(403).body("forbidden");
-        gameService.updateProgress(user,req);
+    @PutMapping("/user/progress/me")
+    public ResponseEntity<?> updateProgress(@RequestBody UserProgress req, Authentication auth) {
+        User user = userRepository.findByUsername(auth.getName()).orElseThrow();
+        gameService.updateProgress(user, req);
         return ResponseEntity.ok().build();
     }
 }

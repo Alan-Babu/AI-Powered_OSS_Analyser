@@ -27,9 +27,10 @@ public class JwtTokenProvider {
     private int jwtExpirationInMs;
 
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
-        return Keys.hmacShaKeyFor(keyBytes);
+        byte[] keyBytes = io.jsonwebtoken.io.Decoders.BASE64.decode(jwtSecret);
+        return io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
     }
+
 
     public String generateToken(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -38,22 +39,21 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
         return Jwts.builder()
-                .setSubject(Long.toString(userPrincipal.getId()))
-                .claim("username", userPrincipal.getUsername())
-                .setIssuedAt(new Date())
+                .setSubject(Long.toString(userPrincipal.getId()))        // sub = userId
+                .claim("username", userPrincipal.getUsername())          // custom claim
+                .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)     // ✅ using decoded key
                 .compact();
     }
 
     public Long getUserIdFromJWT(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return Long.parseLong(claims.getSubject());
+        return Long.parseLong(Jwts.parser()
+            .verifyWith(getSigningKey())
+            .build()
+            .parseSignedClaims(token)
+            .getPayload()
+            .getSubject());
     }
 
     public String getUsernameFromJWT(String token) {
@@ -63,7 +63,7 @@ public class JwtTokenProvider {
                 .parseSignedClaims(token)
                 .getPayload();
 
-        return claims.getSubject();
+        return claims.get("username", String.class);
     }
 
     public boolean validateToken(String authToken) {

@@ -9,6 +9,7 @@ import { ScanEffects } from './statemanagement/scan/scan.effects';
 import { scanReducer } from './statemanagement/scan/scan.reducer';
 import { provideStoreDevtools } from '@ngrx/store-devtools';
 import { ApiService } from './services/api.service';
+import { AuthInterceptor } from './interceptors/auth.interceptor';
 
 import { routes } from './app.routes';
 
@@ -16,13 +17,14 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }), 
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi(),withFetch()),
+    provideHttpClient(withFetch(),withInterceptorsFromDi()),
     provideAnimations(),
     provideMarkdown({loader: HttpClient}),
     provideStore({scan: scanReducer}),
     provideEffects([ScanEffects]),
     //provideStoreDevtools(),
     ApiService,
+    AuthInterceptor,
     { provide: 'BOOTCHECK', useFactory: () => console.log('✅ appConfig loaded!') } // ✅ test
   ]
 };

@@ -1,4 +1,6 @@
 package com.ossrisk.oss.model;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.ossrisk.oss.converter.StringArrayConverter;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -21,8 +23,12 @@ public class Challenge {
     private String description;
     @Column(columnDefinition = "TEXT")
     private String code;
+
+    @Convert(converter = StringArrayConverter.class)
     @Column(columnDefinition = "TEXT")
-    private String optionJson;
+    @JsonProperty("options")
+    private String[] optionJson;
+
     private Integer correctAnswer;
     private String explanation;
     private String difficulty;

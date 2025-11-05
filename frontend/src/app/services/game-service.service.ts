@@ -121,7 +121,7 @@ export class GameService {
     const token = this.authService.getToken();
     if (!token) {
       console.warn('No token found — user not logged in.');
-      return of({ userId: 0, score: 0, level: 1, livesRemaining: 3 });
+      return of({ userId: -1, score: 0, level: 1, livesRemaining: 3 });
     }
 
     return this.http.get<UserProgress>(`${this.baseUrl}/user/progress/me`, this.headers)
@@ -137,7 +137,7 @@ export class GameService {
     const token = this.authService.getToken();
     if (!token) return throwError(() => new Error('User not authenticated'));
 
-    return this.http.put<void>(`${this.baseUrl}/user/progress/${progress.userId}`, progress, this.headers)
+    return this.http.put<void>(`${this.baseUrl}/user/progress/me`, progress, this.headers)
       .pipe(
         catchError(err => {
           console.error('Update progress failed:', err);
@@ -145,6 +145,7 @@ export class GameService {
         })
       );
   }
+
 
   // =============================
   // 🔹 Challenge Submission

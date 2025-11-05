@@ -106,6 +106,8 @@ export class GamifiedDebuggerComponent implements OnInit{
         console.error('Error loading challenges:', error);
       }
     });
+    console.log('Challenges loaded:', this.challenges);
+    console.log('Current challenge:', this.currentChallenge);
   }
 
   loadLeaderboard(): void {
@@ -114,6 +116,7 @@ export class GamifiedDebuggerComponent implements OnInit{
       next: (data) => {this.leaderboard = data;},
       error: (error) => console.error('Error loading leaderboard:', error)
     });
+    console.log('Leaderboard loaded:', this.leaderboard);
   }
 
   startTimer(): void {
