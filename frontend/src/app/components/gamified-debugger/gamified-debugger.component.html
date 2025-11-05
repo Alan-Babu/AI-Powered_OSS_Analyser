@@ -61,10 +61,14 @@
       <!-- Answer Options -->
       <div class="space-y-3">
         <h5 class="font-medium text-gray-900">Select the correct answer:</h5>
+        <div *ngIf="lives <= 0 && !isGameOver" 
+            class="p-3 bg-red-50 text-red-700 rounded-lg text-center font-medium">
+          💀 You have no lives left — please replenish or restart to continue.
+        </div>
         <div class="grid grid-cols-1 gap-3">
           <button *ngFor="let option of currentChallenge?.options || []; let i = index"
                   (click)="submitAnswer(i)"
-                  [disabled]="isAnswerSubmitted"
+                  [disabled]="isAnswerSubmitted || lives <= 0"
                   class="p-4 text-left border-2 rounded-lg transition-all duration-200 hover:border-blue-300 hover:bg-blue-50"
                   [ngClass]="getAnswerButtonClass(i)">
             <div class="flex items-center space-x-3">
@@ -234,6 +238,11 @@
         <button (click)="restartGame()" 
                 class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           Play Again
+        </button>
+        <button 
+          (click)="replenishLives()"
+          class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+          Replenish Lives
         </button>
         <button (click)="isGameOver = false" 
                 class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">

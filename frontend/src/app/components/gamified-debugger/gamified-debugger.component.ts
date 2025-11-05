@@ -66,6 +66,12 @@ export class GamifiedDebuggerComponent implements OnInit{
       this.router.navigate(['/login']);
       return;
     }*/
+   this.gameService.leaderboard$.subscribe(data => {
+      this.leaderboard = data;
+      this.cdr.markForCheck();
+    });
+
+    this.gameService.refreshLeaderboard();
     this.loadGameData();
   }
 
@@ -79,17 +85,12 @@ export class GamifiedDebuggerComponent implements OnInit{
         this.currentLevel = progress.level;
         this.lives = progress.livesRemaining;
 
-        console.log('User progress loaded:', progress);
-
         this.loadChallenges();
-        this.loadLeaderboard();
-
         this.averageTime = this.calculateAverageTime();
       },
       error: (error) => {
         console.warn('Failed to load user progress:', error);
         this.loadChallenges();
-        this.loadLeaderboard();
       }
     });
   }
@@ -98,28 +99,43 @@ export class GamifiedDebuggerComponent implements OnInit{
     this.isLoadingChallenges = true;
     this.gameService.getChallenges().subscribe({
       next: (data) => {
-        this.challenges = data;
+        this.challenges = data.map(ch => this.shuffleOptions(ch));
         this.currentChallenge = data[0] || null;
+        console.log('✅ Challenges loaded:', this.challenges);
         this.startTimer();
+        this.isLoadingChallenges = false;
       },
       error: (error) => {
         console.error('Error loading challenges:', error);
+        this.isLoadingChallenges = false;
       }
     });
-    console.log('Challenges loaded:', this.challenges);
-    console.log('Current challenge:', this.currentChallenge);
   }
+
+  private shuffleOptions(challenge: Challenge): Challenge {
+    const options = [...challenge.options];
+    const correctOption = options[challenge.correctAnswer];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    challenge.options = options;
+    challenge.correctAnswer = options.indexOf(correctOption);
+    return challenge;
+  }
+    
 
   loadLeaderboard(): void {
     this.isLoadingLeaderboard = true;
     this.gameService.getLeaderboard().subscribe({
-      next: (data) => {this.leaderboard = data;},
+      next: (data) => {this.leaderboard = data; this.isLoadingLeaderboard = false;},
       error: (error) => console.error('Error loading leaderboard:', error)
     });
     console.log('Leaderboard loaded:', this.leaderboard);
   }
 
   startTimer(): void {
+    if (this.lives <= 0) return;
     if (this.timer) clearInterval(this.timer);
     this.timeRemaining = 120;
     this.timer = setInterval(() => {
@@ -142,7 +158,11 @@ export class GamifiedDebuggerComponent implements OnInit{
   }
 
   submitAnswer(selectedAnswer: number) {
-    if(!this.currentChallenge) return;
+    if (!this.currentChallenge || this.lives <= 0) {
+      console.warn('🚫 Cannot submit — no lives remaining.');
+      this.isGameOver = true;
+      return;
+    }
     this.isAnswerSubmitted = true;
     this.selectedAnswerIndex = selectedAnswer;
     this.isAnswerCorrect = (selectedAnswer === this.currentChallenge.correctAnswer);
@@ -158,21 +178,21 @@ export class GamifiedDebuggerComponent implements OnInit{
         return;
       }
     }
-    this.updateUserProgress();
+    this.updateUserProgress(() => this.gameService.refreshLeaderboard());
 
   }
 
-  updateUserProgress() {
+  updateUserProgress(afterUpdate?: () => void) {
     if(!this.progress) return;
     const updatedProgress: UserProgress = {
-      userId: this.progress.userId,
+      ...this.progress,
       score: this.score,
       level: this.currentLevel,
       livesRemaining: this.lives
     };
 
     this.gameService.updateProgress(updatedProgress).subscribe({
-      next: () => console.log('User progress updated successfully'),
+      next: () => {console.log('User progress updated successfully'); if(afterUpdate) afterUpdate();},
       error: (err) => console.error('Error updating user progress:', err)
     });
   }
@@ -183,8 +203,12 @@ export class GamifiedDebuggerComponent implements OnInit{
 
     const currentIndex = this.challenges.findIndex(c=> c.id === this.currentChallenge?.id);
     const nextIndex = (currentIndex + 1) % this.challenges.length;
-    this.currentChallenge = this.challenges[nextIndex];
+    this.currentChallenge = this.shuffleOptions(this.challenges[nextIndex]);
     this.startTimer();
+    if (this.lives <= 0) {
+      this.gameOver();
+      return;
+    }
   }
     
   handleTimeOut(): void {
@@ -206,6 +230,7 @@ export class GamifiedDebuggerComponent implements OnInit{
   gameOver() {
     clearInterval(this.timer);
     this.isGameOver = true;
+    console.warn('Game Over! Final Score: ' + this.score);
 
   }
 
@@ -216,6 +241,15 @@ export class GamifiedDebuggerComponent implements OnInit{
     this.isGameOver = false;
     this.totalChallengesCompleted = 0;
     this.loadChallenges();
+  }
+
+  replenishLives() {
+    this.lives = 3;
+    this.isGameOver = false;
+    this.updateUserProgress(() => {
+      console.log('✅ Lives replenished and progress updated.');
+      this.startTimer();
+    });
   }
 
   getPointsForDifficulty(difficulty: string): number {

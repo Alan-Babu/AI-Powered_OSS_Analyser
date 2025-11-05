@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, throwError,tap } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
+import { BehaviorSubject } from 'rxjs';
 
 // ==============================
 // 🔹 Interface Definitions
@@ -50,6 +51,8 @@ export interface UserProgress {
 @Injectable({ providedIn: 'root' })
 export class GameService {
   private readonly baseUrl = environment.apiBaseUrl;
+  private leaderboardSubject = new BehaviorSubject<LeaderboardEntry[]>([]);
+  leaderboard$ = this.leaderboardSubject.asObservable();
 
   constructor(private http: HttpClient, private authService: AuthService) {}
 
@@ -107,11 +110,16 @@ export class GameService {
   getLeaderboard(): Observable<LeaderboardEntry[]> {
     return this.http.get<LeaderboardEntry[]>(`${this.baseUrl}/leaderboard`, this.headers)
       .pipe(
+        tap(data => this.leaderboardSubject.next(data)),
         catchError(() => {
           console.warn('Backend not reachable — using local leaderboard');
           return of(this.defaultLeaderboard);
         })
       );
+  }
+
+  refreshLeaderboard() {
+    this.getLeaderboard().subscribe();
   }
 
   // =============================
