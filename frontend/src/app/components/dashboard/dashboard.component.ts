@@ -73,7 +73,7 @@ loadDashboardData(): void {
   .subscribe({
     next: ({ repos, reports, health }) => {
       this.repositories = repos || [];
-      this.recentReports = (reports || []).slice(0, 5);
+      this.recentReports = (reports || []);//.slice(0, 5);
       this.servicesHealth = health || {};
       this.totalRepositories = this.repositories.length;
       this.calculateDashboardStats();
@@ -131,6 +131,8 @@ loadDashboardData(): void {
     this.highVulnerabilities = this.recentReports.reduce(
       (total, r) => total + (r.highVulnerabilities || 0), 0
     );
+    console.log('Dashboard stats calculated: ',this.criticalVulnerabilities,this.highVulnerabilities);
+    console.log('Recent reports: ',this.recentReports);
   }
 
   getRiskLevel(score: number): string {

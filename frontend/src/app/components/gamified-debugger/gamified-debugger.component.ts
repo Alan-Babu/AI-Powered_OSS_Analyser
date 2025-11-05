@@ -204,7 +204,7 @@ export class GamifiedDebuggerComponent implements OnInit{
     const currentIndex = this.challenges.findIndex(c=> c.id === this.currentChallenge?.id);
     const nextIndex = (currentIndex + 1) % this.challenges.length;
     this.currentChallenge = this.shuffleOptions(this.challenges[nextIndex]);
-    this.startTimer();
+    //this.startTimer();
     if (this.lives <= 0) {
       this.gameOver();
       return;

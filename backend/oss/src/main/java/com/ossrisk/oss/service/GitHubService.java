@@ -7,6 +7,7 @@ import com.ossrisk.oss.model.Vulnerability;
 import com.ossrisk.oss.repository.RepositoryMetadataRepository;
 import com.ossrisk.oss.repository.RiskReportRepository;
 import com.ossrisk.oss.utility.GitCloner;
+import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -19,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -52,9 +54,10 @@ public class GitHubService {
     }
 
     public RiskReport processRepository(String repoUrl) {
+        File repoDir = null;
         try {
             // Clone repository
-            File repoDir = GitCloner.cloneRepo(repoUrl);
+            repoDir = GitCloner.cloneRepo(repoUrl);
             
             // Extract repository info
             String[] parts = repoUrl.replace("https://github.com/", "").split("/");
@@ -104,6 +107,15 @@ public class GitHubService {
             errorReport.setRepoUrl(repoUrl);
             errorReport.setRiskScore(0.0);
             return errorReport;
+        } finally {
+            if (repoDir != null && repoDir.exists()) {
+                try {
+                    FileUtils.deleteDirectory(repoDir); // or your deleteDirectoryRecursively()
+                    System.out.println("✅ Deleted cloned repository: " + repoDir.getAbsolutePath());
+                } catch (IOException e) {
+                    System.err.println("⚠️ Failed to delete repo: " + e.getMessage());
+                }
+            }
         }
     }
 
