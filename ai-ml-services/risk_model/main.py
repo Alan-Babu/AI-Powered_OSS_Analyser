@@ -6,7 +6,9 @@ from enhanced_risk_predictor import predict_dependency_risk_enhanced, Dependency
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
-
+import asyncio
+from functools import lru_cache
+import json
 # Load environment variables
 load_dotenv()
 
@@ -64,6 +66,18 @@ class RiskAssessmentResponse(BaseModel):
     summary: Dict[str, Any]
     model_version: str
 
+@lru_cache(maxsize=1000)
+def cached_predict(dependency_json: str) -> Dict[str, Any]:
+    """In-memory cache for repeated dependency predictions"""
+    data = json.loads(dependency_json)
+    use_light_model = os.getenv("USE_LIGHT_MODEL", "False").lower() == "true"
+
+    if use_light_model:
+        # fallback to lightweight model for quick scans
+        from ml_risk_predictor import predict_dependency_risk
+        return predict_dependency_risk(data)
+    return predict_dependency_risk_enhanced(data)
+
 @app.post("/risk/assess", response_model=Dict[str, Any])
 async def assess_dependency_risk(dependency: DependencyData):
     """
@@ -75,12 +89,11 @@ async def assess_dependency_risk(dependency: DependencyData):
     """
     try:
         logger.info(f"Assessing risk for dependency: {dependency.package_name}")
+        dep_json = json.dumps(dependency.dict(), sort_keys=True)
         
-        # Convert to dictionary format
-        dependency_dict = dependency.dict()
         
         # Get risk assessment using pre-trained models
-        result = predict_dependency_risk_enhanced(dependency_dict)
+        result = cached_predict(dep_json)
         
         logger.info(f"Risk assessment completed for {dependency.package_name}: {result.get('risk_level', 'UNKNOWN')}")
         return result
@@ -100,64 +113,40 @@ async def batch_assess_dependencies(request: RiskAssessmentRequest):
     """
     try:
         logger.info(f"Starting batch risk assessment for {len(request.dependencies)} dependencies")
-        
-        assessments = []
-        high_risk_count = 0
-        medium_risk_count = 0
-        low_risk_count = 0
-        total_risk_score = 0.0
-        
-        for i, dependency in enumerate(request.dependencies):
+        async def process_dependency(dependency: DependencyData):
+            dep_json = json.dumps(dependency.dict(), sort_keys=True)
             try:
-                logger.info(f"Processing dependency {i+1}/{len(request.dependencies)}: {dependency.package_name}")
-                
-                # Convert to dictionary format
-                dependency_dict = dependency.dict()
-                
-                # Get risk assessment
-                result = predict_dependency_risk_enhanced(dependency_dict)
-                assessments.append(result)
-                
-                # Update summary statistics
-                risk_level = result.get('risk_level', 'MEDIUM')
-                if risk_level == 'HIGH':
-                    high_risk_count += 1
-                elif risk_level == 'MEDIUM':
-                    medium_risk_count += 1
-                else:
-                    low_risk_count += 1
-                
-                total_risk_score += result.get('risk_score', 0.5)
-                
+                return cached_predict(dep_json)
             except Exception as e:
                 logger.error(f"Error processing dependency {dependency.package_name}: {str(e)}")
-                # Add error result
-                assessments.append({
+                return {
                     'package_name': dependency.package_name,
                     'error': str(e),
                     'risk_score': 0.5,
                     'risk_level': 'MEDIUM',
                     'confidence': 0.0
-                })
-        
-        # Calculate summary
-        avg_risk_score = total_risk_score / len(request.dependencies) if request.dependencies else 0.0
-        
+                }
+            
+        assessments = await asyncio.gather(*[process_dependency(dep) for dep in request.dependencies])
+        high = sum(1 for a in assessments if a.get("risk_level") == "HIGH")
+        medium = sum(1 for a in assessments if a.get("risk_level") == "MEDIUM")
+        low = sum(1 for a in assessments if a.get("risk_level") == "LOW")
+        avg_score = sum(a.get("risk_score", 0.5) for a in assessments) / len(assessments)
+    
         summary = {
             'total_dependencies': len(request.dependencies),
-            'high_risk_count': high_risk_count,
-            'medium_risk_count': medium_risk_count,
-            'low_risk_count': low_risk_count,
-            'average_risk_score': avg_risk_score,
-            'high_risk_percentage': (high_risk_count / len(request.dependencies)) * 100 if request.dependencies else 0.0
+            'high_risk_count': high,
+            'medium_risk_count': medium,
+            'low_risk_count': low,
+            'average_risk_score': avg_score,
+            'high_risk_percentage': (high / len(request.dependencies)) * 100 if request.dependencies else 0.0
         }
         
-        logger.info(f"Batch assessment completed: {len(request.dependencies)} dependencies processed")
-        
+        logger.info(f"Batch assessment completed: {len(request.dependencies)} dependencies processed") 
         return RiskAssessmentResponse(
             assessments=assessments,
             summary=summary,
-            model_version="3.0.0"
+            model_version="3.1.0"
         )
         
     except Exception as e:

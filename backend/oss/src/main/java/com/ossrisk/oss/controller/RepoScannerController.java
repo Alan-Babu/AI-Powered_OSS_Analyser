@@ -6,11 +6,14 @@ import com.ossrisk.oss.service.GitHubService;
 import com.ossrisk.oss.model.RepositoryMetadata;
 import com.ossrisk.oss.repository.RepositoryMetadataRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Bean;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
@@ -25,6 +28,8 @@ public class RepoScannerController {
     @Autowired
     private GitHubService gitHubService;
 
+    private final WebClient webClient;
+
     @Autowired
     private RepositoryMetadataRepository repositoryMetadataRepository;
 
@@ -33,6 +38,10 @@ public class RepoScannerController {
 
     @Autowired
     private RestTemplate restTemplate;
+
+    public RepoScannerController(WebClient.Builder webClientBuilder){
+        this.webClient = webClientBuilder.baseUrl("http://localhost:8003").build();
+    }
 
     @PostMapping("/scan")
     public ResponseEntity<RiskReport> scanRepository(
@@ -175,28 +184,25 @@ public class RepoScannerController {
     }
 
     @PostMapping("/ai/predict")
-    public ResponseEntity<Map<String, Object>> predictRiskWithAI(@RequestBody Map<String, Object> request) {
-        try {
-            ResponseEntity<Map> aiResponse = restTemplate.postForEntity(
-                "http://localhost:8003/risk/batch-assess",
-                request,
-                Map.class
-            );
-
-            if (aiResponse.getStatusCode().is2xxSuccessful() && aiResponse.getBody() != null) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> body = (Map<String, Object>) aiResponse.getBody();
-                return ResponseEntity.ok(body);
-            }
-
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", "AI prediction service responded with status: " + aiResponse.getStatusCode());
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", "Failed to get AI prediction: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
-        }
+    public Mono<ResponseEntity<Map<String, Object>>> predictRiskWithAI(@RequestBody Map<String, Object> request) {
+        return webClient.post()
+                .uri("/risk/batch-assess")
+                .bodyValue(request)
+                .retrieve()
+                .toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .map(response -> {
+                    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                        return ResponseEntity.ok(response.getBody());
+                    }
+                    Map<String, Object> error = new HashMap<>();
+                    error.put("error", "AI service responded with status: " + response.getStatusCode());
+                    return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
+                })
+                .onErrorResume(e -> {
+                    Map<String, Object> error = new HashMap<>();
+                    error.put("error", "Failed to get AI prediction: " + e.getMessage());
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error));
+                });
     }
 
     @PatchMapping("/vulnerabilities/{id}/status")

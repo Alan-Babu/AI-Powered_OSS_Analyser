@@ -19,9 +19,15 @@
       <h2 class="text-xl font-semibold text-gray-900">Risk Reports</h2>
       <p class="text-gray-600 mt-1">Recent security assessments</p>
     </div>
+    <div class="flex justify-end mb-1 mt-3 text-sm text-gray-600 mr-8">
+      <label class="mr-2">Items per page:</label>
+      <select [(ngModel)]="pageSize" (change)="updatePagination()" class="border rounded-lg px-2 py-1">
+        <option *ngFor="let size of [5, 10, 20]" [value]="size">{{ size }}</option>
+      </select>
+    </div>
     <div class="p-6">
       <div class="space-y-4">
-        <div *ngFor="let report of riskReports" 
+        <div *ngFor="let report of paginatedReports" 
              class="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors duration-200 cursor-pointer"
              (click)="selectReport(report)">
           <div class="flex items-start justify-between">
@@ -52,6 +58,38 @@
           </div>
         </div>
       </div>
+    </div>
+    <!-- Pagination Controls -->
+    <div class="flex justify-center items-center space-x-2 mt-6" *ngIf="totalPages > 1">
+        <button 
+          class="px-3 py-1 rounded-lg bg-gray-200 disabled:opacity-50 hover:bg-gray-300"
+          [disabled]="currentPage === 1"
+          (click)="goToPage(currentPage - 1)">
+          Prev
+        </button>
+
+        <ng-container *ngFor="let page of [].constructor(totalPages); let i = index">
+          <button 
+            class="px-3 py-1 rounded-lg transition-colors"
+            [ngClass]="{
+              'bg-blue-600 text-white': currentPage === i + 1,
+              'bg-gray-200 hover:bg-gray-300': currentPage !== i + 1
+            }"
+            (click)="goToPage(i + 1)">
+            {{ i + 1 }}
+          </button>
+        </ng-container>
+
+        <button 
+          class="px-3 py-1 rounded-lg bg-gray-200 disabled:opacity-50 hover:bg-gray-300"
+          [disabled]="currentPage === totalPages"
+          (click)="goToPage(currentPage + 1)">
+          Next
+        </button>
+    </div>
+    <div class="text-sm text-gray-500 text-center mt-2">
+      Showing {{ (currentPage - 1) * pageSize + 1 }}–
+      {{ Math.min(currentPage * pageSize, riskReports.length) }} of {{ riskReports.length }} reports
     </div>
   </div>
 

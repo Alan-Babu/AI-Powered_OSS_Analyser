@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { EnhancedApiService, RiskReport, Vulnerability, Dependency } from '../../services/enhanced-api.service';
 import { Subscription } from 'rxjs';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-risk-assessment',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './risk-assessment.component.html',
   styleUrl: './risk-assessment.component.scss',
   encapsulation: ViewEncapsulation.None
@@ -19,6 +20,7 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
   selectedReport: RiskReport | null = null;
   isLoading = false;
   errorMessage: string | null = null;
+  Math = Math; // Expose Math to template
   
   // Risk Analysis
   riskMetrics = {
@@ -44,6 +46,11 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
     medium: 0,
     low: 0
   };
+
+  currentPage: number = 1;
+  pageSize: number = 5; // Number of risk reports per page
+  totalPages: number = 1;
+  paginatedReports: RiskReport[] = [];
 
   private subscriptions: Subscription[] = [];
 
@@ -72,6 +79,21 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
     // });
   }
 
+  updatePagination(): void {
+    if (!this.riskReports) return;
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    const endIndex = startIndex + this.pageSize;
+    this.paginatedReports = this.riskReports.slice(startIndex, endIndex);
+    this.totalPages = Math.ceil(this.riskReports.length / this.pageSize);
+  }
+
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages) return;
+    this.currentPage = page;
+    this.updatePagination();
+  }
+
+
   loadRiskReports(): void {
     this.isLoading = true;
     this.errorMessage = null;
@@ -80,6 +102,7 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
       next: (reports) => {
         this.riskReports = reports;
         this.calculateRiskMetrics();
+        this.updatePagination();
         this.isLoading = false;
       },
       error: (error) => {
@@ -127,6 +150,7 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
         const risk = this.getRiskLevel(report.riskScore || 0);
         return risk === filters.riskLevel;
       });
+      this.updatePagination();
     }
 
     // Apply date range filter (if implemented)
@@ -165,6 +189,13 @@ export class RiskAssessmentComponent implements OnInit, OnDestroy {
     this.aiRiskPrediction = null;
   }
 
+/*************  ✨ Windsurf Command ⭐  *************/
+  /**
+   * Generate AI risk prediction for a given report or the selected report.
+   * @param {RiskReport} [report] - The report to generate AI prediction for.
+   * If no report is provided, the selected report will be used.
+   */
+/*******  7c87a1b8-5728-4adc-9dc7-5229a640d953  *******/
   generateAIPrediction(report?: RiskReport): void {
     console.log('Generating AI prediction for report:', report || this.selectedReport);
     const target = report || this.selectedReport;
