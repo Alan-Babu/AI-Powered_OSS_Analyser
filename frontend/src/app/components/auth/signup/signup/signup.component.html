@@ -3,30 +3,75 @@
     <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Create Account</h2>
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-4">
+
+      <!-- Username -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-        <input type="text" formControlName="username"
-          class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-200">
+        <input
+          type="text"
+          formControlName="username"
+          class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-200"
+          placeholder="Enter username"
+        />
+        <div *ngIf="form.get('username')?.touched && form.get('username')?.invalid"
+             class="text-red-600 text-xs mt-1">
+          <div *ngIf="form.get('username')?.errors?.['required']">Username is required.</div>
+          <div *ngIf="form.get('username')?.errors?.['minlength']">Minimum 3 characters required.</div>
+        </div>
       </div>
 
+      <!-- Email -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-        <input type="email" formControlName="email"
-          class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-200">
+        <input
+          type="email"
+          formControlName="email"
+          class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-200"
+          placeholder="Enter email"
+        />
+        <div *ngIf="form.get('email')?.touched && form.get('email')?.invalid"
+             class="text-red-600 text-xs mt-1">
+          <div *ngIf="form.get('email')?.errors?.['required']">Email is required.</div>
+          <div *ngIf="form.get('email')?.errors?.['email']">Please enter a valid email.</div>
+        </div>
       </div>
 
+      <!-- Password -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-        <input type="password" formControlName="password"
-          class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-200">
+        <input
+          type="password"
+          formControlName="password"
+          class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-200"
+          placeholder="Enter strong password"
+        />
+        <!-- ✅ Show password validation feedback -->
+        <div *ngIf="form.get('password')?.touched && form.get('password')?.invalid"
+             class="text-red-600 text-xs mt-1 space-y-1">
+          <div *ngIf="form.get('password')?.errors?.['required']">Password is required.</div>
+          <div *ngIf="form.get('password')?.errors?.['pattern']">
+            Password must contain:
+            <ul class="list-disc list-inside ml-3">
+              <li>At least 8 characters</li>
+              <li>One uppercase letter</li>
+              <li>One lowercase letter</li>
+              <li>One number</li>
+              <li>One special character (&#64;$!%*?&)</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
+      <!-- Messages -->
       <div *ngIf="successMessage" class="text-green-600 text-sm text-center">{{ successMessage }}</div>
       <div *ngIf="errorMessage" class="text-red-600 text-sm text-center">{{ errorMessage }}</div>
 
-      <button type="submit"
-              [disabled]="form.invalid || isLoading"
-              class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors">
+      <!-- Submit -->
+      <button
+        type="submit"
+        [disabled]="form.invalid || isLoading"
+        class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+      >
         <span *ngIf="!isLoading">Sign Up</span>
         <span *ngIf="isLoading">Creating Account...</span>
       </button>

@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.util.Collections;
+import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -50,13 +52,17 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody SignUpRequest signUpRequest) {
+    public ResponseEntity<Map<String, String>> registerUser(@Valid @RequestBody SignUpRequest signUpRequest) {
+        Map<String, String> response = new HashMap<>();
+
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
-            return ResponseEntity.badRequest().body("Username is already taken!");
+            response.put("message", "Username is already taken!");
+            return ResponseEntity.badRequest().body(response);
         }
 
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-            return ResponseEntity.badRequest().body("Email is already in use!");
+            response.put("message", "Email is already in use!");
+            return ResponseEntity.badRequest().body(response);
         }
 
         User user = new User();
@@ -67,6 +73,8 @@ public class AuthController {
 
         userRepository.save(user);
 
-        return ResponseEntity.ok("User registered successfully");
+        response.put("message", "User registered successfully");
+        return ResponseEntity.ok(response);
     }
+
 }
