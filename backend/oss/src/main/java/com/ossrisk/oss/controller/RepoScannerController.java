@@ -1,7 +1,9 @@
 package com.ossrisk.oss.controller;
 
 import com.ossrisk.oss.model.RiskReport;
+import com.ossrisk.oss.model.Vulnerability;
 import com.ossrisk.oss.repository.RiskReportRepository;
+import com.ossrisk.oss.repository.VulnerabilityRepository;
 import com.ossrisk.oss.service.GitHubService;
 import com.ossrisk.oss.model.RepositoryMetadata;
 import com.ossrisk.oss.repository.RepositoryMetadataRepository;
@@ -13,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -29,6 +32,9 @@ public class RepoScannerController {
     private GitHubService gitHubService;
 
     private final WebClient webClient;
+
+    @Autowired
+    private VulnerabilityRepository vulnerabilityRepository;
 
     @Autowired
     private RepositoryMetadataRepository repositoryMetadataRepository;
@@ -219,6 +225,17 @@ public class RepoScannerController {
             error.put("error", "Failed to update vulnerability status: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
+    }
+
+    @PutMapping("/vulnerabilities/{id}/remediation")
+    public ResponseEntity<?> updateRemidiation(@PathVariable Long id, @RequestBody Map<String, String> body){
+        String remediation = body.get("remediation");
+        Vulnerability v = vulnerabilityRepository.findById(id)
+                .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND, "Vulnerability not found"));
+
+        v.setRemediation(remediation);
+        vulnerabilityRepository.save(v);
+        return ResponseEntity.ok(Map.of("message", "Remediation updated"));
     }
 
     @PostMapping("/batch-scan")

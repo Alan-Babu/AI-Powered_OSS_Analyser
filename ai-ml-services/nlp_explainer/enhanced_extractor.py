@@ -98,35 +98,30 @@ class EnhancedNLPExplainer:
         )
     
     @lru_cache(maxsize=1000)
-    def extract_fix_and_remediation(self, description: str) -> Dict[str, any]:
+    async def extract_fix_and_remediation(self, description: str) -> Dict[str, any]:
         """Enhanced extraction with caching and multiple NLP techniques"""
         if not description or len(description.strip()) == 0:
             return self._create_empty_result()
-        
+
         try:
-            # Parallel processing of different extraction methods
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
+            # Run all async tasks concurrently
             tasks = [
                 self._extract_with_spacy(description),
                 self._extract_with_bert(description),
                 self._extract_with_patterns(description),
                 self._extract_vulnerability_info(description)
             ]
-            
-            results = loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-            loop.close()
-            
-            # Combine and validate results
-            combined_result = self._combine_extraction_results(results, description)
-            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Combine all results
+            combined_result = await self._combine_extraction_results(results, description)
             return combined_result
-            
+
         except Exception as e:
             logger.error(f"Error in extraction: {e}")
             return self._create_empty_result()
-    
+
+
     async def _extract_with_spacy(self, text: str) -> Dict[str, any]:
         """Extract information using SpaCy NLP"""
         if not self.nlp:
@@ -275,7 +270,28 @@ class EnhancedNLPExplainer:
             logger.error(f"Vulnerability info extraction error: {e}")
             return {}
     
-    def _combine_extraction_results(self, results: List, original_text: str) -> Dict[str, any]:
+    async def _call_ai_remediation_service(self, original_text: str) -> str:
+        chat_api_url = "http://localhost:8000/chat"  # 🔹 Update this to your deployed chat service URL
+        prompt = (
+            "You are a cybersecurity assistant. "
+            "Based on the following vulnerability description, "
+            "write a concise remediation guideline in 3–5 sentences:\n\n"
+            f"{original_text}"
+        )
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(chat_api_url, json={"message": prompt}, timeout=60) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data.get("response", "No remediation generated.")
+                    else:
+                        logger.warning(f"Chat API returned status {resp.status}")
+                        return "Unable to generate remediation from AI."
+        except Exception as e:
+            logger.error(f"Error calling Chat microservice: {e}")
+            return "Unable to generate remediation from AI."
+
+    async def _combine_extraction_results(self, results: List, original_text: str) -> Dict[str, any]:
         """Combine results from different extraction methods"""
         try:
             combined = {
@@ -326,8 +342,9 @@ class EnhancedNLPExplainer:
             if remediation_parts:
                 combined['remediation'] = ' '.join(remediation_parts[:3])  # Limit to 3 sentences
             else:
-                combined['remediation'] = f"Update to version {fix_version} or later to resolve the vulnerability."
-            
+                combined['remediation'] = await self._call_ai_remediation_service(original_text)
+
+                
             # Calculate confidence based on extraction success
             successful_extractions = sum(1 for r in results if isinstance(r, dict) and r)
             total_methods = len(results)

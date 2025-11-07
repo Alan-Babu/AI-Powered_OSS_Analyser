@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
-import { Observable, map, catchError, throwError, BehaviorSubject,of } from 'rxjs';
+import { Observable, map, catchError, throwError, BehaviorSubject,of,tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface RepositoryMetadata {
@@ -214,6 +214,15 @@ export class EnhancedApiService {
     );
   }
 
+  updateRemediation(vulnId: number, remediation: string): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/repo/vulnerabilities/${vulnId}/remediation`, { remediation })
+      .pipe(
+        tap(() => console.log(`Remediation updated for vulnerability ${vulnId}`)),
+        catchError(this.handleError)
+      );
+  }
+
+
 
   getVulnerabilitiesBySeverity(severity: string): Observable<Vulnerability[]> {
     return this.getAllVulnerabilities().pipe(
@@ -405,7 +414,10 @@ private enhanceReportWithAIInsights(report: RiskReport): RiskReport {
 
   private enhanceNLPResult(result: any): any {
     return {
-      ...result,
+      remediation: result.explanation || result.remediation || 'No remediation information available',
+      fixVersion: result.fixVersion || '',
+      confidence: result.confidence || 0.0,
+      vulnerability_info: result.vulnerability_info || {},
       enhanced: true,
       timestamp: new Date().toISOString()
     };

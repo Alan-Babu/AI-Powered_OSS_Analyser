@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import logging
+import asyncio
 from enhanced_extractor import extract_fix_and_remediation
 from typing import Any, Dict
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +30,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class ExplainRequest(BaseModel):
+    text: str
+
+class ExplainResponse(BaseModel):
+    explanation: str
+    fixVersion: str
+    confidence: float
+    vulnerability_info: Dict[str, Any]
 
 class VulnerabilityText(BaseModel):
     description: str = Field(..., min_length=1, max_length=10000, description="Vulnerability description text")
@@ -59,19 +69,28 @@ def extract_from_description(vulnerability: VulnerabilityText):
         logger.error(f"Error processing vulnerability description: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing description: {str(e)}")
 
-@app.post("/explain", response_model=Dict[str, Any])
-def explain(vuln: ExplainRequest):
+@app.post("/explain", response_model=ExplainResponse)
+async def explain(vuln: ExplainRequest):
     """
     Frontend-compatible endpoint: accepts { text } and returns structured result
     """
     try:
-        result = extract_fix_and_remediation(vuln.text)
-        return {
-            "explanation": result.get("remediation", ""),
-            "fixVersion": result.get("fixVersion", ""),
-            "confidence": result.get("confidence", 0.0),
-            "vulnerability_info": result.get("vulnerability_info", {}),
-        }
+        logger.info("Starting NLP extraction for explain request")
+        logger.info(f"extract_fix_and_remediation is async? {asyncio.iscoroutinefunction(extract_fix_and_remediation)}")
+
+        result = await extract_fix_and_remediation(vuln.text)
+
+        logger.info(f"Extraction completed with confidence {result.get('confidence', 0.0)}")
+        
+        return ExplainResponse(
+            explanation = result.get("remediation", ""),
+            fixVersion = result.get("fixVersion", ""),
+            confidence = result.get("confidence", 0.0),
+            vulnerability_info =  result.get("vulnerability_info", {}),
+        )
+    except asyncio.TimeoutError:
+        logger.error("AI remediation generation timed out")
+        raise HTTPException(status_code=504, detail="Remediation generation timed out")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error explaining text: {str(e)}")
 

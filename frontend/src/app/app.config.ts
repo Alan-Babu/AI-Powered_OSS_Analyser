@@ -10,6 +10,8 @@ import { scanReducer } from './statemanagement/scan/scan.reducer';
 import { provideStoreDevtools } from '@ngrx/store-devtools';
 import { ApiService } from './services/api.service';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
+import {provideToastr} from 'ngx-toastr';
+
 
 import { routes } from './app.routes';
 
@@ -22,6 +24,12 @@ export const appConfig: ApplicationConfig = {
     provideMarkdown({loader: HttpClient}),
     provideStore({scan: scanReducer}),
     provideEffects([ScanEffects]),
+    provideToastr({
+      positionClass: 'toast-bottom-right',
+      timeOut: 3000,
+      closeButton: true,
+      progressBar: true
+    }),
     //provideStoreDevtools(),
     ApiService,
     AuthInterceptor,
