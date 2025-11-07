@@ -13,6 +13,7 @@ from functools import lru_cache
 import asyncio
 import aiohttp
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +52,20 @@ class EnhancedNLPExplainer:
         self.executor = ThreadPoolExecutor(max_workers=4)
         self._initialize_models()
     
+
+    
+
+    def async_cache(func):
+        cache = {}
+        @wraps(func)
+        async def wrapper(self, key):
+            if key in cache:
+                return cache[key]
+            result = await func(self, key)
+            cache[key] = result
+            return result
+        return wrapper
+
     def _initialize_models(self):
         """Initialize NLP models with error handling"""
         try:
@@ -97,7 +112,7 @@ class EnhancedNLPExplainer:
             ngram_range=(1, 2)
         )
     
-    @lru_cache(maxsize=1000)
+    @async_cache
     async def extract_fix_and_remediation(self, description: str) -> Dict[str, any]:
         """Enhanced extraction with caching and multiple NLP techniques"""
         if not description or len(description.strip()) == 0:
@@ -423,6 +438,6 @@ class EnhancedNLPExplainer:
 # Global instance for reuse
 explainer = EnhancedNLPExplainer()
 
-def extract_fix_and_remediation(description: str) -> Dict[str, any]:
+async def extract_fix_and_remediation(description: str) -> Dict[str, any]:
     """Main function for extracting fix and remediation information"""
-    return explainer.extract_fix_and_remediation(description)
+    return await explainer.extract_fix_and_remediation(description)
