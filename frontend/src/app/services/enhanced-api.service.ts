@@ -98,6 +98,7 @@ export class EnhancedApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.apiBaseUrl;
   private readonly chatbotUrl = environment.chatboturl;
+  private readonly aiUrl = environment.aiServices.securityScanner;
   
   // Observable for real-time updates
   private scanProgressSubject = new BehaviorSubject<ScanProgress | null>(null);
@@ -132,6 +133,11 @@ export class EnhancedApiService {
         catchError(this.handleError)
       );
   }
+
+  analyzeRepositoryWithAI(payload: any): Observable<any> {
+    return this.http.post(`${this.aiUrl}/scan/security`, payload);
+  }
+
 
   getRepositoryById(id: number): Observable<RepositoryMetadata> {
     return this.http.get<RepositoryMetadata>(`${this.baseUrl}/repo/${id}`)

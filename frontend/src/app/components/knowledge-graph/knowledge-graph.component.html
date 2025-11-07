@@ -64,14 +64,16 @@
         <select [(ngModel)]="selectedLayout" 
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
           <option value="force">Force Directed</option>
-          <option value="hierarchical">Hierarchical</option>
-          <option value="circular">Circular</option>
+          <option value="radial">Radial</option>
+          <option value="grouped">Grouped Force</option>
+          <option value="cluster">Cluster</option>
+          <option value="force-clustered">ForceCluster</option>
         </select>
       </div>
       
       <div class="flex items-end">
         <button (click)="applyFilters()" 
-                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mb-9">
           Apply Filters
         </button>
       </div>
@@ -177,6 +179,68 @@
         Generate Report
       </button>
     </div>
+    <!-- AI Analysis Result -->
+    <div *ngIf="isAnalyzing" class="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4 text-center text-gray-600">
+      <svg class="w-5 h-5 inline mr-2 animate-spin text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle>
+        <path class="opacity-75" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 018-8v8z"></path>
+      </svg>
+      Analyzing node with AI...
+    </div>
+
+    <div *ngIf="!isAnalyzing && aiAnalysisResult" class="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+      <h4 class="text-md font-semibold text-gray-800 mb-3 flex items-center space-x-2">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
+        </svg>
+        <span>AI Analysis Result</span>
+      </h4>
+
+      <!-- Structured AI result rendering -->
+      <div *ngIf="aiAnalysisResult.remediation" class="mb-3">
+        <p class="text-sm text-gray-600 font-medium mb-1">Remediation:</p>
+        <p class="text-sm whitespace-pre-wrap text-gray-800">{{ aiAnalysisResult.remediation }}</p>
+      </div>
+
+      <div *ngIf="aiAnalysisResult.fixVersion">
+        <p class="text-sm text-gray-600 font-medium mb-1">Fix Version:</p>
+        <p class="text-sm text-gray-800">{{ aiAnalysisResult.fixVersion || 'Not specified' }}</p>
+      </div>
+
+      <div *ngIf="aiAnalysisResult.confidence !== undefined">
+        <p class="text-sm text-gray-600 font-medium mb-1">Confidence:</p>
+        <p class="text-sm text-gray-800">{{ aiAnalysisResult.confidence }}</p>
+      </div>
+
+      <div *ngIf="aiAnalysisResult.vulnerability_info" class="mt-3">
+        <p class="text-sm text-gray-600 font-medium mb-1">Vulnerability Info:</p>
+        <div class="pl-3 border-l border-gray-300 text-sm text-gray-700 space-y-1">
+          <p *ngIf="aiAnalysisResult.vulnerability_info.cve_id">CVE ID: 
+            <span class="font-medium text-gray-900">{{ aiAnalysisResult.vulnerability_info.cve_id }}</span>
+          </p>
+          <p *ngIf="aiAnalysisResult.vulnerability_info.severity">Severity: 
+            <span class="font-medium capitalize">{{ aiAnalysisResult.vulnerability_info.severity }}</span>
+          </p>
+          <p *ngIf="aiAnalysisResult.vulnerability_info.cvss_score !== null">CVSS Score: 
+            <span class="font-medium">{{ aiAnalysisResult.vulnerability_info.cvss_score }}</span>
+          </p>
+          <p *ngIf="aiAnalysisResult.timestamp">Analyzed at: 
+            <span class="font-medium text-gray-900">{{ aiAnalysisResult.timestamp | date:'medium' }}</span>
+          </p>
+        </div>
+      </div>
+
+      <div *ngIf="aiAnalysisResult.message" class="text-sm text-gray-700">
+        {{ aiAnalysisResult.message }}
+      </div>
+
+      <div *ngIf="aiAnalysisResult.error" class="text-sm text-red-600">
+        {{ aiAnalysisResult.error }}
+      </div>
+    </div>
+    
+
   </div>
 
   <!-- Graph Statistics -->

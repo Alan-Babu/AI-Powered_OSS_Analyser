@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import ast
 import astroid
 from pylint import epylint as lint
+import httpx  # make sure to install: pip install httpx
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -60,6 +61,18 @@ class BatchScanResult(BaseModel):
     results: List[SecurityScanResult]
     total_files_scanned: int
     overall_project_score: float
+
+class SecurityAnalysisRequest(BaseModel):
+    filename: str
+    content: str
+    language: str = "auto"
+
+class SecurityAnalysisResponse(BaseModel):
+    analysis: str
+
+
+
+CHAT_SERVICE_URL = "http://localhost:8000/chat"  # points to your chat microservice
 
 # Security patterns and rules
 SECURITY_PATTERNS = {
@@ -207,45 +220,106 @@ def analyze_python_ast(content: str) -> List[SecurityIssue]:
     
     return issues
 
+
+
 @app.post("/scan/security", response_model=SecurityScanResult)
 async def scan_security_issues(file: CodeFile):
-    """Scan a single file for security vulnerabilities"""
+    """Scan a single file for security vulnerabilities, then enhance with AI insights."""
     try:
         logger.info(f"Scanning file: {file.filename}")
         result = scan_code_security(file.content, file.filename)
         logger.info(f"Scan completed for {file.filename}: {result.total_issues} issues found")
-        return result
+
+        # ✅ Compose a contextual AI prompt
+        ai_prompt = f"""
+        Analyze the following security scan result for file: {file.filename}.
+        Programming language: {file.language}
+
+        The static scanner found:
+        - {result.total_issues} total issues
+        - High: {result.high_issues}, Medium: {result.medium_issues}, Low: {result.low_issues}
+
+        Please provide:
+        1. A natural-language explanation of what these issues might mean.
+        2. Risk impact overview.
+        3. Suggested next steps or remediations.
+
+        Static Scanner Report:
+        {result.json(indent=2)}
+        """
+
+        # ✅ Send prompt to chat microservice
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                CHAT_SERVICE_URL,
+                json={"message": ai_prompt},
+                timeout=60.0
+            )
+            response.raise_for_status()
+            ai_output = response.json().get("response", "No AI response received.")
+
+        # ✅ Attach AI insights to result dynamically
+        result_dict = result.dict()
+        result_dict["ai_insights"] = {
+            "summary": ai_output,
+            "model": "openai/gpt-oss-20b:fireworks-ai"
+        }
+
+        return result_dict
+
     except Exception as e:
         logger.error(f"Error scanning file {file.filename}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error scanning file: {str(e)}")
 
-@app.post("/scan/batch", response_model=BatchScanResult)
-async def batch_scan_security(files: BatchScanRequest):
-    """Batch scan multiple files for security vulnerabilities"""
+@app.post("/scan/security", response_model=SecurityScanResult)
+async def scan_security_issues(file: CodeFile):
+    """Scan a single file for security vulnerabilities, then enhance with AI insights."""
     try:
-        logger.info(f"Starting batch scan of {len(files.files)} files")
-        results = []
-        
-        for file in files.files:
-            result = scan_code_security(file.content, file.filename)
-            results.append(result)
-        
-        # Calculate overall project score
-        total_score = sum(r.overall_security_score for r in results)
-        overall_score = total_score / len(results) if results else 100.0
-        
-        batch_result = BatchScanResult(
-            results=results,
-            total_files_scanned=len(files.files),
-            overall_project_score=overall_score
-        )
-        
-        logger.info(f"Batch scan completed: {len(files.files)} files scanned")
-        return batch_result
-        
+        logger.info(f"Scanning file: {file.filename}")
+        result = scan_code_security(file.content, file.filename)
+        logger.info(f"Scan completed for {file.filename}: {result.total_issues} issues found")
+
+        # ✅ Convert result safely for use in string (Pydantic v2)
+        result_json_str = result.model_dump_json(indent=2)
+
+        ai_prompt = f"""
+        Analyze the following security scan result for file: {file.filename}.
+        Programming language: {file.language}
+
+        The static scanner found:
+        - {result.total_issues} total issues
+        - High: {result.high_issues}, Medium: {result.medium_issues}, Low: {result.low_issues}
+
+        Please provide:
+        1. A natural-language explanation of what these issues might mean.
+        2. Risk impact overview.
+        3. Suggested next steps or remediations.
+
+        Static Scanner Report:
+        {result_json_str}
+        """
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                CHAT_SERVICE_URL,
+                json={"message": ai_prompt},
+                timeout=60.0
+            )
+            response.raise_for_status()
+            ai_output = response.json().get("response", "No AI response received.")
+
+        result_dict = result.model_dump()
+        result_dict["ai_insights"] = {
+            "summary": ai_output,
+            "model": "openai/gpt-oss-20b:fireworks-ai"
+        }
+
+        return result_dict
+
     except Exception as e:
-        logger.error(f"Error in batch scan: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error in batch scan: {str(e)}")
+        logger.error(f"Error scanning file {file.filename}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error scanning file: {str(e)}")
+
 
 @app.get("/health")
 def health_check():

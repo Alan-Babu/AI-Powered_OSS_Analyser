@@ -348,6 +348,7 @@ async def export_graph(format: str):
         logger.error(f"Error exporting graph: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+'''
 @app.get("/graph/visualization")
 async def get_graph_visualization():
     """Get graph visualization data for frontend"""
@@ -385,6 +386,81 @@ async def get_graph_visualization():
             }
         }
         
+    except Exception as e:
+        logger.error(f"Error getting visualization data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+'''
+
+@app.get("/graph/visualization")
+async def get_graph_visualization():
+    """Get graph visualization data for frontend"""
+    try:
+        if kg_service.graph.number_of_nodes() == 0:
+            raise HTTPException(status_code=400, detail="No graph built yet. Use /graph/build first.")
+        
+        nodes, edges = [], []
+        
+        # 🔹 Extract all dependencies and vulnerabilities
+        for node in kg_service.graph.nodes():
+            node_data = kg_service.graph.nodes[node]
+            node_type = node_data.get("type", "dependency")
+
+            if "vulnerability" in node.lower():
+                node_type = "vulnerability"
+            elif "repo" in node.lower() or "repository" in node_data.get("ecosystem", ""):
+                node_type = "repository"
+
+            nodes.append({
+                "id": node,
+                "name": node_data.get("name", node),
+                "type": node_type,
+                "ecosystem": node_data.get("ecosystem", "unknown"),
+                "group": node_type,
+                "risk": node_data.get("riskLevel", "medium")
+            })
+
+        # 🔹 Add edges
+        for u, v in kg_service.graph.edges():
+            edge_data = kg_service.graph.edges[u, v]
+            edges.append({
+                "source": u,
+                "target": v,
+                "type": edge_data.get("relationship_type", "depends_on"),
+                "strength": edge_data.get("strength", 1.0)
+            })
+        
+        # ✅ Add Vulnerabilities per Dependency if present in metadata
+        for node_id, data in kg_service.graph.nodes(data=True):
+            if "vulnerabilities" in data:
+                for vuln in data["vulnerabilities"]:
+                    vuln_id = f"vuln:{vuln['cve']}"
+                    nodes.append({
+                        "id": vuln_id,
+                        "name": vuln["title"] or vuln["cve"],
+                        "type": "vulnerability",
+                        "group": "vulnerability",
+                        "cvssScore": vuln["cvssScore"],
+                        "risk": (
+                            "high" if vuln["cvssScore"] >= 7.0 else
+                            "medium" if vuln["cvssScore"] >= 4.0 else
+                            "low"
+                        )
+                    })
+                    edges.append({
+                        "source": node_id,
+                        "target": vuln_id,
+                        "type": "has_vulnerability",
+                        "strength": 0.9
+                    })
+        
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "metadata": {
+                "total_nodes": len(nodes),
+                "total_edges": len(edges)
+            }
+        }
     except Exception as e:
         logger.error(f"Error getting visualization data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

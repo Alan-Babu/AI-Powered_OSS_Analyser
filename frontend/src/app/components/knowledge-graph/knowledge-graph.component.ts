@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef,AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { EnhancedApiService } from '../../services/enhanced-api.service';
@@ -11,7 +11,7 @@ import * as d3 from 'd3';
   templateUrl: './knowledge-graph.component.html',
   styleUrl: './knowledge-graph.component.scss'
 })
-export class KnowledgeGraphComponent implements OnInit {
+export class KnowledgeGraphComponent implements OnInit, AfterViewInit {
   
   @ViewChild('graphContainer') private graphContainer!: ElementRef;
 
@@ -27,6 +27,9 @@ export class KnowledgeGraphComponent implements OnInit {
 
   isLoading = false;
   errorMessage = '';
+  aiAnalysisResult: any = null;
+  isAnalyzing = false;
+
 
   private simulation: d3.Simulation<any, undefined> | null = null;
   private svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
@@ -39,6 +42,10 @@ export class KnowledgeGraphComponent implements OnInit {
     this.loadGraphData();
   }
 
+  ngAfterViewInit(): void {
+    this.initializeGraph();
+  }
+  
   async loadGraphData() {
     this.isLoading = true;
     try {
@@ -73,8 +80,8 @@ export class KnowledgeGraphComponent implements OnInit {
   buildGraphFromData(repositories: any[], reports: any[]) {
     const nodes: any[] = [];
     const edges: any[] = [];
-    
-    // Repo nodes
+
+    // 🧩 Step 1: Repositories
     repositories.forEach((repo, index) => {
       nodes.push({
         id: `repo_${repo.id}`,
@@ -85,11 +92,15 @@ export class KnowledgeGraphComponent implements OnInit {
       });
     });
 
-    // Dependencies + vulnerabilities
+    // 🧩 Step 2: Dependencies + Vulnerabilities
     reports.forEach((report, reportIndex) => {
-      if (report.dependencies) {
+      const repoId = `repo_${report.id || reportIndex}`;
+
+      if (report.dependencies && Array.isArray(report.dependencies)) {
         report.dependencies.forEach((dep: any, depIndex: number) => {
           const depId = `dep_${reportIndex}_${depIndex}`;
+
+          // Dependency node
           nodes.push({
             id: depId,
             label: dep.name || `Dependency ${depIndex + 1}`,
@@ -97,31 +108,49 @@ export class KnowledgeGraphComponent implements OnInit {
             risk: this.getRiskLevel(dep.riskScore || 0),
             data: dep
           });
-          edges.push({ source: `repo_${report.id || reportIndex}`, target: depId, type: 'depends_on' });
-        });
-      }
-      if (report.vulnerabilities) {
-        report.vulnerabilities.forEach((vuln: any, vulnIndex: number) => {
-          const vulnId = `vuln_${reportIndex}_${vulnIndex}`;
-          nodes.push({
-            id: vulnId,
-            label: vuln.cve || vuln.title || `Vulnerability ${vulnIndex + 1}`,
-            type: 'vulnerability',
-            risk: this.getRiskLevel(vuln.cvssScore || 0),
-            data: vuln
+
+          // Edge: repository → dependency
+          edges.push({
+            source: repoId,
+            target: depId,
+            type: 'depends_on'
           });
-          if (vuln.dependencyId) {
-            edges.push({ source: `dep_${reportIndex}_${vuln.dependencyId}`, target: vulnId, type: 'has_vulnerability' });
+
+          // ✅ Vulnerabilities under each dependency
+          if (dep.vulnerabilities && Array.isArray(dep.vulnerabilities)) {
+            dep.vulnerabilities.forEach((vuln: any, vulnIndex: number) => {
+              const vulnId = `vuln_${reportIndex}_${depIndex}_${vulnIndex}`;
+              nodes.push({
+                id: vulnId,
+                label: vuln.cve || vuln.title || `Vulnerability ${vulnIndex + 1}`,
+                type: 'vulnerability',
+                risk: this.getRiskLevel(vuln.cvssScore || 0),
+                data: vuln
+              });
+
+              // Connect dependency → vulnerability
+              edges.push({
+                source: depId,
+                target: vulnId,
+                type: 'has_vulnerability'
+              });
+            });
           }
         });
       }
     });
 
+    // 🧩 Step 3: Remove broken edges and assign to graphData
     const nodeIds = new Set(nodes.map(n => n.id));
     const safeEdges = edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
 
     this.graphData = { nodes, edges: safeEdges };
+
+    console.log('✅ Repositories:', nodes.filter(n => n.type === 'repository').length);
+    console.log('✅ Dependencies:', nodes.filter(n => n.type === 'dependency').length);
+    console.log('✅ Vulnerabilities:', nodes.filter(n => n.type === 'vulnerability').length);
   }
+
 
   getRiskLevel(score: number): string {
     if (score >= 7) return 'high';
@@ -129,25 +158,27 @@ export class KnowledgeGraphComponent implements OnInit {
     return 'low';
   }
 
-  initializeGraph() {
+  initializeGraph(): void {
     const container = this.graphContainer?.nativeElement as HTMLElement;
     if (!container) return;
 
+    // 🧹 Clear old SVG and stop previous simulation
+    d3.select(container).selectAll('*').interrupt();
     d3.select(container).selectAll('*').remove();
+    if (this.simulation) this.simulation.stop();
 
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 400;
 
-    this.svg = d3.select(container).append('svg').attr('width', '100%').attr('height', '100%');
+    // 🖼️ SVG + group
+    this.svg = d3.select(container)
+      .append('svg')
+      .attr('width', '100%')
+      .attr('height', '100%');
+
     this.g = this.svg.append('g');
 
-    this.zoom = d3.zoom().on('zoom', (event) => {
-      this.g.attr('transform', event.transform);
-      // Hide labels when zoomed out
-      labels.style('display', event.transform.k > 0.7 ? 'block' : 'none');
-    });
-    this.svg.call(this.zoom);
-
+    // 🎨 Color by node type
     const color = (type: string) => {
       switch (type) {
         case 'repository': return '#3b82f6';
@@ -157,101 +188,155 @@ export class KnowledgeGraphComponent implements OnInit {
       }
     };
 
+    // 🔗 Links
     const link = this.g.append('g')
       .attr('stroke', '#999')
       .attr('stroke-opacity', 0.6)
       .selectAll('line')
       .data(this.graphData.edges)
-      .enter().append('line')
+      .enter()
+      .append('line')
       .attr('stroke-width', 1.5);
 
+    // ⚫ Nodes
     const node = this.g.append('g')
       .selectAll('circle')
       .data(this.graphData.nodes)
-      .enter().append('circle')
+      .enter()
+      .append('circle')
       .attr('r', 6)
       .attr('fill', d => color(d.type))
       .call(
         d3.drag<SVGCircleElement, any>()
           .on('start', (event, d) => {
-            if (!event.active && this.simulation) this.simulation.alphaTarget(0.3).restart();
-            d.fx = d.x; d.fy = d.y;
+            if (!event.active && this.simulation)
+              this.simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
           })
-          .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+          .on('drag', (event, d) => {
+            d.fx = event.x;
+            d.fy = event.y;
+          })
           .on('end', (event, d) => {
-            if (!event.active && this.simulation) this.simulation.alphaTarget(0);
-            d.fx = null; d.fy = null;
+            if (!event.active && this.simulation)
+              this.simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
           })
       )
       .on('click', (_, d: any) => this.onNodeClick(d));
 
-    // ✅ labels with tooltip
+    node.append('title').text((d: any) => d.label);
+
+    // 🏷️ Labels
     const labels = this.g.append('g')
       .selectAll('text')
       .data(this.graphData.nodes)
-      .enter().append('text')
-      .text(d => d.label.length > 15 ? d.label.slice(0, 15) + "…" : d.label) // truncate
+      .enter()
+      .append('text')
+      .text(d => d.label.length > 15 ? d.label.slice(0, 15) + '…' : d.label)
       .attr('font-size', '10px')
-      .attr('fill', '#374151');
+      .attr('text-anchor', 'start')
+      .style('pointer-events', 'none');
 
-    node.append('title').text((d: any) => d.label); // tooltip with full text
+    // 🔍 Zoom & Pan
+    this.zoom = d3.zoom().on('zoom', (event) => {
+      this.g.attr('transform', event.transform);
+      labels.attr('opacity', event.transform.k > 0.8 ? 1 : 0);
+    });
+    this.svg.call(this.zoom);
 
-    // 🔑 Switch layouts
-    if (this.selectedLayout === 'force') {
-      // Force-directed with collision
-      this.simulation = d3.forceSimulation(this.graphData.nodes as any)
-        .force('link', d3.forceLink(this.graphData.edges as any).id((d: any) => d.id).distance(80))
-        .force('charge', d3.forceManyBody().strength(-200))
-        .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collide', d3.forceCollide(30)) // 👈 prevent overlap
-        .alphaDecay(0.05)
-        .on('tick', () => {
-          link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
-              .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
-          node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
-          labels.attr('x', (d: any) => d.x + 10).attr('y', (d: any) => d.y + 3);
-        })
-        .on('end', () => this.zoomToFit());
+    // ✅ Layout-specific configuration
+    type NodeType = 'repository' | 'dependency' | 'vulnerability';
 
-    } else if (this.selectedLayout === 'hierarchical') {
-      // Hierarchical: repos → deps → vulns
-      const levels: Record<string, number> = { repository: 0, dependency: 1, vulnerability: 2 };
-      const layerHeight = height / 3;
+    // Centers for cluster/grouped layouts
+    const centers: Record<NodeType, { x: number; y: number }> = {
+      repository: { x: width * 0.25, y: height / 2 },
+      dependency: { x: width * 0.5, y: height / 2 },
+      vulnerability: { x: width * 0.75, y: height / 2 }
+    };
 
-      this.graphData.nodes.forEach((n, i) => {
-        n.x = (i % 10) * 100 + 50;
-        n.y = levels[n.type] * layerHeight + 50;
+    // 🔹 Helper layout biases
+    const applyClusterBias = () => {
+      (this.graphData.nodes as any[]).forEach((d: any) => {
+        const type = (d.type as NodeType) || 'dependency';
+        const center = centers[type] || { x: width / 2, y: height / 2 };
+        d.vx = (d.vx ?? 0) + (center.x - d.x) * 0.002;
+        d.vy = (d.vy ?? 0) + (center.y - d.y) * 0.002;
+      });
+    };
+
+    const applyRadialBias = () => {
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const baseRadius = Math.min(width, height) / 3;
+      (this.graphData.nodes as any[]).forEach((d: any, i: number) => {
+        const layer =
+          d.type === 'repository' ? 0.3 :
+          d.type === 'dependency' ? 0.6 : 0.9;
+        const angle =
+          (i / Math.max(1, this.graphData.nodes.length)) * Math.PI * 2 +
+          (Math.random() - 0.5) * 0.05;
+        const tx = centerX + Math.cos(angle) * baseRadius * layer;
+        const ty = centerY + Math.sin(angle) * baseRadius * layer;
+        d.vx = (d.vx ?? 0) + (tx - d.x) * 0.002;
+        d.vy = (d.vy ?? 0) + (ty - d.y) * 0.002;
+      });
+    };
+
+    // 🧮 Shared D3 Simulation (works for all layouts)
+    this.simulation = d3.forceSimulation(this.graphData.nodes as any)
+      .force('link', d3.forceLink(this.graphData.edges as any)
+        .id((d: any) => d.id)
+        .distance(90)
+        .strength(0.5))
+      .force('charge', d3.forceManyBody().strength(-90))
+      .force('collide', d3.forceCollide(18))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .alphaDecay(0.02)
+      .on('tick', () => {
+        // layout bias per selected type
+        if (this.selectedLayout === 'grouped' || this.selectedLayout === 'forceClustered') {
+          applyClusterBias();
+        } else if (this.selectedLayout === 'radial') {
+          applyRadialBias();
+        } else if (this.selectedLayout === 'cluster') {
+          (this.graphData.nodes as any[]).forEach((d: any) => {
+            const layerY =
+              d.type === 'repository'
+                ? height * 0.25
+                : d.type === 'dependency'
+                ? height * 0.5
+                : height * 0.75;
+            d.vy = (d.vy ?? 0) + (layerY - d.y) * 0.002;
+          });
+        }
+
+        // Update positions
+        link
+          .attr('x1', (d: any) => (d.source as any).x)
+          .attr('y1', (d: any) => (d.source as any).y)
+          .attr('x2', (d: any) => (d.target as any).x)
+          .attr('y2', (d: any) => (d.target as any).y);
+
+        node
+          .attr('cx', (d: any) => d.x)
+          .attr('cy', (d: any) => d.y);
+
+        labels
+          .attr('x', (d: any) => d.x + 10)
+          .attr('y', (d: any) => d.y + 3);
       });
 
-      link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
-          .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
-      node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
-      labels
-        .attr('x', (d: any, i) => d.x + (i % 2 === 0 ? 12 : -12)) // stagger
-        .attr('y', (d: any, i) => d.y + (i % 3 === 0 ? -12 : 12));
+    // ⏳ Smooth zoom once stabilized
+    this.simulation.on('end', () => this.zoomToFit());
 
-      this.zoomToFit();
-
-    } else if (this.selectedLayout === 'circular') {
-      // Circular layout
-      const radius = Math.min(width, height) / 2 - 50;
-      const angleStep = (2 * Math.PI) / this.graphData.nodes.length;
-
-      this.graphData.nodes.forEach((n, i) => {
-        n.x = width / 2 + radius * Math.cos(i * angleStep);
-        n.y = height / 2 + radius * Math.sin(i * angleStep);
-      });
-
-      link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
-          .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
-      node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
-      labels
-        .attr('x', (d: any, i) => d.x + (i % 2 === 0 ? 12 : -12))
-        .attr('y', (d: any, i) => d.y + (i % 3 === 0 ? -12 : 12));
-
-      this.zoomToFit();
-    }
+    // Restart simulation for fresh render
+    this.simulation.alpha(0.3).restart();
   }
+
+
 
   private zoomToFit() {
     const bounds = this.g.node()?.getBBox();
@@ -355,16 +440,30 @@ export class KnowledgeGraphComponent implements OnInit {
   }
 
   async analyzeNode(node: any) {
+    this.aiAnalysisResult = null;
+    this.isAnalyzing = true;
+
     try {
-      let result;
+      let result: any;
+
       switch (node.type) {
         case 'repository':
-          // For repository analysis, we need to provide sample content since we don't have actual code
-          result = await this.apiService.analyzeCodeWithAI(
-            'sample.java', 
-            '// Sample code for analysis\npublic class Sample {\n  // Code would be here\n}', 
-            'java'
-          ).toPromise();
+          const repoUrl = node.data.repoUrl || 'unknown';
+          const risk = node.data.riskScore ?? 0;
+          const vulnCount = node.data.totalVulnerabilities ?? 0;
+
+          const content = `
+          Repository URL: ${repoUrl}
+          Risk Score: ${risk}
+          Total Vulnerabilities: ${vulnCount}
+
+          Please analyze this repository for potential security risks, 
+          outdated dependencies, and potential injection or crypto issues.
+          `;
+
+          result = await this.apiService
+              .analyzeCodeWithAI(`${repoUrl.split('/').pop() || 'repository'}.txt`, content, 'repository')
+              .toPromise();
           break;
         case 'dependency':
           result = await this.apiService.explainVulnerabilityWithNLP(node.data.name || '').toPromise();
@@ -373,18 +472,20 @@ export class KnowledgeGraphComponent implements OnInit {
           result = await this.apiService.explainVulnerabilityWithNLP(node.data.cve || node.data.title || '').toPromise();
           break;
         default:
-          result = 'Analysis not available for this node type.';
+          result = { message: 'Analysis not available for this node type.' };
       }
-      
-      // Show analysis result (you could implement a modal or notification)
-      console.log('AI Analysis Result:', result);
-      alert(`AI Analysis for ${node.label}:\n\n${result}`);
-      
+
+      // ✅ Store the raw object
+      this.aiAnalysisResult = result || { message: 'No analysis data returned.' };
     } catch (error) {
       console.error('Error analyzing node:', error);
-      alert('Failed to analyze node. Please try again.');
+      this.aiAnalysisResult = { error: 'Failed to analyze node. Please try again.' };
+    } finally {
+      this.isAnalyzing = false;
     }
   }
+
+
 
   generateReport(node: any) {
     // Generate a detailed report for the selected node
