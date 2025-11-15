@@ -101,7 +101,8 @@ public class EnhancedDependencyAnalyzerService {
             Map<String, Object> packageData = getPackageMetadata(dep);
             
             // Enhance dependency with real data
-            dep.setVulnerable((Boolean) vulnerabilityData.getOrDefault("hasVulnerabilities", false));
+            int vulncount = (Integer) vulnerabilityData.getOrDefault("vulnerabilityCount", 0);
+            dep.setVulnerable(vulncount>0);
             dep.setOutdated((Boolean) packageData.getOrDefault("isOutdated", false));
             
             // Set additional metadata

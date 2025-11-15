@@ -249,6 +249,7 @@ export class RepositoryScanComponent implements OnInit, OnDestroy {
   }
 
   getTotalVulnerabilities(report: RiskReport): number {
+    console.log('Total vulnerabilities:', report.totalVulnerabilities);
     return report.totalVulnerabilities || 0;
   }
 
